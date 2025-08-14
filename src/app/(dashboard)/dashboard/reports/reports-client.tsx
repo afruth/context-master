@@ -147,7 +147,7 @@ interface Team {
   name: string
 }
 
-export default function ReportsPage() {
+export function ReportsClient() {
   const [activeTab, setActiveTab] = useState<'overview' | 'personal' | 'team'>('overview')
   const [selectedTeamId, setSelectedTeamId] = useState<string>()
   const [filters, setFilters] = useState<ReportFiltersType>({
@@ -284,15 +284,7 @@ export default function ReportsPage() {
   const isLoading = personalReportQuery.isLoading || teamReportQuery.isLoading || overviewReportQuery.isLoading
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Reports & Analytics</h1>
-        <p className="text-muted-foreground">
-          Analyze your productivity and track your progress across personal and team work.
-        </p>
-      </div>
-
+    <div className="space-y-6">
       {/* Quick Filters */}
       <div className="flex items-center justify-between">
         <QuickFilters filters={filters} onFiltersChange={setFilters} />

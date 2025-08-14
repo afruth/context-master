@@ -62,8 +62,8 @@ export const updatePersonalTodoSchema = z.object({
 })
 
 export const personalTodoQuerySchema = z.object({
-  page: z.string().transform(val => parseInt(val) || 1),
-  limit: z.string().transform(val => Math.min(parseInt(val) || 20, 100)),
+  page: z.string().optional().transform(val => parseInt(val || '1') || 1),
+  limit: z.string().optional().transform(val => Math.min(parseInt(val || '20') || 20, 100)),
   status: todoStatusEnum.optional(),
   priority: priorityEnum.optional(),
   category: z.string().optional(),
@@ -170,8 +170,8 @@ export const updateTimeEntrySchema = z.object({
 })
 
 export const timeEntryQuerySchema = z.object({
-  page: z.string().transform(val => parseInt(val) || 1),
-  limit: z.string().transform(val => Math.min(parseInt(val) || 20, 100)),
+  page: z.string().optional().transform(val => parseInt(val || '1') || 1),
+  limit: z.string().optional().transform(val => Math.min(parseInt(val || '20') || 20, 100)),
   startDate: z.string().datetime().optional(),
   endDate: z.string().datetime().optional(),
   todoId: z.string().cuid().optional(),

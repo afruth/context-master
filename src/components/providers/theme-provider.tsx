@@ -25,7 +25,7 @@ interface ThemeProviderProps {
   defaultTheme?: Theme
 }
 
-export function ThemeProvider({ children, defaultTheme = 'system' }: ThemeProviderProps) {
+export function ThemeProvider({ children, defaultTheme = 'light' }: ThemeProviderProps) {
   const [theme, setThemeState] = React.useState<Theme>(defaultTheme)
   const [systemTheme, setSystemTheme] = React.useState<'light' | 'dark'>('light')
 
@@ -34,6 +34,10 @@ export function ThemeProvider({ children, defaultTheme = 'system' }: ThemeProvid
     const savedTheme = localStorage.getItem('theme') as Theme
     if (savedTheme && ['light', 'dark', 'system'].includes(savedTheme)) {
       setThemeState(savedTheme)
+    } else if (!savedTheme) {
+      // If no saved theme, explicitly set light theme
+      setThemeState('light')
+      localStorage.setItem('theme', 'light')
     }
   }, [])
 
@@ -56,11 +60,15 @@ export function ThemeProvider({ children, defaultTheme = 'system' }: ThemeProvid
     const actualTheme = theme === 'system' ? systemTheme : theme
     const root = document.documentElement
     
+    // Always remove first to ensure clean state
+    root.classList.remove('dark')
+    
     if (actualTheme === 'dark') {
       root.classList.add('dark')
-    } else {
-      root.classList.remove('dark')
     }
+    
+    // Force a style recalculation
+    root.style.colorScheme = actualTheme
   }, [theme, systemTheme])
 
   const setTheme = React.useCallback((newTheme: Theme) => {

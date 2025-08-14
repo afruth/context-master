@@ -116,7 +116,7 @@ const MultiSelect = React.forwardRef<HTMLDivElement, MultiSelectProps>(
                     className="rounded-sm px-1 font-normal"
                   >
                     {option.icon && (
-                      <option.icon className="mr-1 h-3 w-3" />
+                      React.createElement(option.icon, { className: "mr-1 h-3 w-3" })
                     )}
                     {option.label}
                     <button
@@ -171,7 +171,7 @@ const MultiSelect = React.forwardRef<HTMLDivElement, MultiSelectProps>(
                         )}
                       />
                       {option.icon && (
-                        <option.icon className="mr-2 h-4 w-4" />
+                        React.createElement(option.icon, { className: "mr-2 h-4 w-4" })
                       )}
                       {option.label}
                     </CommandItem>

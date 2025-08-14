@@ -141,7 +141,7 @@ export function TimeEntryList({
   if (!entries || entries.length === 0) {
     return (
       <EmptyState
-        icon={Clock}
+        icon={<Clock className="h-6 w-6" />}
         title="No time entries yet"
         description="Start tracking time on your todos to see entries here"
       />

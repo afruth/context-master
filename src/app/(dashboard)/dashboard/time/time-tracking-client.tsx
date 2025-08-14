@@ -22,7 +22,7 @@ export function TimeTrackingClient({}: TimeTrackingClientProps) {
   const queryClient = useQueryClient()
 
   // Fetch active timer
-  const { data: activeTimer, isLoading: activeTimerLoading } = useQuery<{ data: ActiveTimer | null }>({
+  const { data: activeTimer, isLoading: activeTimerLoading } = useQuery<ActiveTimer | null>({
     queryKey: ['active-timer'],
     queryFn: async () => {
       const response = await fetch('/api/time-entries/active')

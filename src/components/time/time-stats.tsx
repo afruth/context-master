@@ -81,7 +81,7 @@ export function TimeStats({ data }: TimeStatsProps) {
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <stat.icon className={cn('h-4 w-4', stat.color)} />
+              {React.createElement(stat.icon, { className: cn('h-4 w-4', stat.color) })}
               <span className="text-sm font-medium">{stat.label}</span>
             </div>
           </div>
