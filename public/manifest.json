@@ -1,0 +1,65 @@
+{
+  "name": "Collaborative Todo Application",
+  "short_name": "Todo App",
+  "description": "A modern task management platform for personal productivity and team collaboration",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#06b6d4",
+  "orientation": "portrait-primary",
+  "categories": ["productivity", "business"],
+  "lang": "en",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icon-512x512.png", 
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Create Todo",
+      "short_name": "New Todo",
+      "description": "Quickly create a new personal todo",
+      "url": "/dashboard/todos/new",
+      "icons": [
+        {
+          "src": "/icon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Time Tracking",
+      "short_name": "Timer",
+      "description": "Track time for your tasks",
+      "url": "/dashboard/time",
+      "icons": [
+        {
+          "src": "/icon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Teams",
+      "short_name": "Teams",
+      "description": "Manage your teams and collaboration",
+      "url": "/dashboard/teams",
+      "icons": [
+        {
+          "src": "/icon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
+}

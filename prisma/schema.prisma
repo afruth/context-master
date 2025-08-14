@@ -14,14 +14,35 @@ model User {
   id            String    @id @default(cuid())
   email         String    @unique
   username      String?   @unique
-  password      String
+  password      String    // Hashed with bcryptjs
   name          String?
   image         String?
   emailVerified DateTime?
+  
+  // User preferences
+  timezone      String    @default("UTC")
+  theme         String    @default("system") // "light" | "dark" | "system"
+  notifications Boolean   @default(true)
+  language      String    @default("en")
+  settings      String?   // JSON field for comprehensive user settings
+  
+  // Timestamps
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+  lastLoginAt   DateTime?
   
-  sessions      Session[]
+  // Relations
+  sessions       Session[]
+  personalTodos  PersonalTodo[]
+  teamMembers    TeamMember[]
+  teamInvitations TeamInvitation[]
+  timeEntries    TimeEntry[]
+  createdTeams   Team[]    @relation("TeamOwner")
+  assignedTeamTodos TeamTodo[] @relation("TodoAssignee")
+  createdTeamTodos TeamTodo[] @relation("TodoCreator")
+  todoComments   TodoComment[]
+  
+  @@map("users")
 }
 
 model Session {
@@ -33,4 +54,266 @@ model Session {
   
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  
+  @@map("sessions")
+}
+
+// Enums
+enum TeamRole {
+  OWNER   // Full permissions, cannot be removed, can transfer ownership
+  ADMIN   // Manage team, invite users, manage all todos, cannot remove owner
+  MEMBER  // Create/edit own todos, view all team todos, basic participation
+  VIEWER  // View team todos only, cannot create or edit
+  
+  @@map("team_roles")
+}
+
+enum InvitationStatus {
+  PENDING   // Invitation sent, waiting for response
+  ACCEPTED  // Invitation accepted, member joined
+  DECLINED  // Invitation declined by recipient
+  EXPIRED   // Invitation expired (automatically set)
+  CANCELLED // Invitation cancelled by inviter
+  
+  @@map("invitation_statuses")
+}
+
+enum TodoStatus {
+  TODO        // Not started
+  IN_PROGRESS // Currently being worked on
+  COMPLETED   // Finished successfully
+  CANCELLED   // Cancelled or abandoned
+  
+  @@map("todo_statuses")
+}
+
+enum Priority {
+  LOW     // Nice to have
+  MEDIUM  // Standard priority
+  HIGH    // Important
+  URGENT  // Critical, needs immediate attention
+  
+  @@map("priorities")
+}
+
+// Team Management Models
+model Team {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  slug        String   @unique // URL-friendly team identifier
+  
+  // Team settings
+  isPublic    Boolean  @default(false)
+  inviteCode  String?  @unique // Optional public invite code
+  color       String?  @default("#06b6d4") // Team color for UI
+  
+  // Team configuration
+  allowGuestInvites Boolean @default(false)
+  requireApproval   Boolean @default(false)
+  maxMembers       Int?    // Optional member limit
+  
+  // Ownership
+  ownerId     String
+  owner       User     @relation("TeamOwner", fields: [ownerId], references: [id])
+  
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  archivedAt  DateTime? // For soft delete
+  
+  // Relations
+  members     TeamMember[]
+  todos       TeamTodo[]
+  invitations TeamInvitation[]
+  
+  @@map("teams")
+}
+
+model TeamMember {
+  id       String   @id @default(cuid())
+  teamId   String
+  userId   String
+  role     TeamRole @default(MEMBER)
+  
+  // Membership metadata
+  joinedAt   DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  lastActiveAt DateTime?
+  invitedById String? // Who invited this member
+  
+  // Member settings
+  notifications Boolean @default(true)
+  emailDigest   Boolean @default(true)
+  
+  // Relations
+  team     Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([teamId, userId])
+  @@map("team_members")
+}
+
+model TeamInvitation {
+  id        String            @id @default(cuid())
+  email     String
+  teamId    String
+  inviterId String
+  role      TeamRole          @default(MEMBER)
+  token     String            @unique
+  status    InvitationStatus  @default(PENDING)
+  
+  // Invitation metadata
+  message   String?           // Optional personal message
+  expiresAt DateTime
+  respondedAt DateTime?
+  
+  // Timestamps
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  
+  // Relations
+  team      Team              @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  inviter   User              @relation(fields: [inviterId], references: [id])
+  
+  @@unique([email, teamId]) // Prevent duplicate invitations
+  @@map("team_invitations")
+}
+
+// Todo Models
+model PersonalTodo {
+  id          String      @id @default(cuid())
+  title       String
+  description String?     // Rich markdown content
+  
+  // Todo properties
+  status      TodoStatus  @default(TODO)
+  priority    Priority    @default(MEDIUM)
+  dueDate     DateTime?
+  
+  // Organization
+  category    String?
+  tags        String?     // JSON string of tags for flexible organization
+  color       String?     // Optional color coding
+  
+  // Metadata
+  estimatedMinutes Int?    // Time estimate
+  actualMinutes    Int?    // Calculated from time entries
+  
+  // Ownership
+  userId      String
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Timestamps
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  completedAt DateTime?
+  archivedAt  DateTime?   // For soft delete
+  
+  // Relations
+  timeEntries TimeEntry[]
+  
+  @@map("personal_todos")
+}
+
+model TeamTodo {
+  id          String      @id @default(cuid())
+  title       String
+  description String?     // Rich markdown content
+  
+  // Todo properties
+  status      TodoStatus  @default(TODO)
+  priority    Priority    @default(MEDIUM)
+  dueDate     DateTime?
+  
+  // Team context
+  teamId      String
+  team        Team        @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  
+  // Assignment
+  assigneeId  String?     // Optional assignment
+  assignee    User?       @relation("TodoAssignee", fields: [assigneeId], references: [id])
+  createdById String      // Who created the todo
+  createdBy   User        @relation("TodoCreator", fields: [createdById], references: [id])
+  
+  // Organization
+  category    String?
+  tags        String?     // JSON string of tags
+  color       String?     // Optional color coding
+  
+  // Collaboration
+  isTemplate  Boolean     @default(false)
+  templateName String?    // If this is a template
+  
+  // Metadata
+  estimatedMinutes Int?    // Time estimate
+  actualMinutes    Int?    // Calculated from time entries
+  
+  // Timestamps
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  completedAt DateTime?
+  archivedAt  DateTime?   // For soft delete
+  
+  // Relations
+  timeEntries TimeEntry[]
+  comments    TodoComment[]
+  
+  @@map("team_todos")
+}
+
+model TodoComment {
+  id         String   @id @default(cuid())
+  content    String   // Markdown supported
+  teamTodoId String
+  userId     String
+  
+  // Metadata
+  isEdited   Boolean  @default(false)
+  editedAt   DateTime?
+  
+  // Timestamps
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  // Relations
+  teamTodo   TeamTodo @relation(fields: [teamTodoId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("todo_comments")
+}
+
+// Time Tracking Models
+model TimeEntry {
+  id          String    @id @default(cuid())
+  
+  // Time data
+  startTime   DateTime
+  endTime     DateTime?
+  duration    Int?      // Calculated duration in seconds
+  description String?
+  
+  // Context - can be personal or team todo
+  personalTodoId String?
+  personalTodo   PersonalTodo? @relation(fields: [personalTodoId], references: [id], onDelete: Cascade)
+  teamTodoId     String?
+  teamTodo       TeamTodo?     @relation(fields: [teamTodoId], references: [id], onDelete: Cascade)
+  
+  // User tracking
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Entry metadata
+  isManual    Boolean   @default(false) // Manual entry vs timer-based
+  source      String?   @default("web") // "web", "mobile", "api"
+  
+  // Billing (future feature)
+  billable    Boolean   @default(false)
+  hourlyRate  Float?    // Hourly rate as floating point
+  
+  // Timestamps
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  @@map("time_entries")
 }

@@ -4,9 +4,17 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { FormField } from '@/components/ui/form-field'
+import { PasswordStrength } from '@/components/ui/password-strength'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+
+interface FormErrors {
+  name?: string
+  email?: string
+  password?: string
+  confirmPassword?: string
+  general?: string
+}
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -16,27 +24,75 @@ export default function RegisterPage() {
     password: '',
     confirmPassword: '',
   })
-  const [error, setError] = useState('')
+  const [errors, setErrors] = useState<FormErrors>({})
   const [loading, setLoading] = useState(false)
+  const [showPasswordStrength, setShowPasswordStrength] = useState(false)
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target
+    
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value,
+      [name]: value,
     })
+    
+    // Clear field-specific errors when user starts typing
+    if (errors[name as keyof FormErrors]) {
+      setErrors({
+        ...errors,
+        [name]: undefined,
+      })
+    }
+    
+    // Show password strength when user starts typing password
+    if (name === 'password') {
+      setShowPasswordStrength(value.length > 0)
+    }
+  }
+
+  const validateForm = (): boolean => {
+    const newErrors: FormErrors = {}
+
+    // Name validation
+    if (!formData.name.trim()) {
+      newErrors.name = 'Name is required'
+    } else if (formData.name.length > 100) {
+      newErrors.name = 'Name must be less than 100 characters'
+    }
+
+    // Email validation
+    if (!formData.email.trim()) {
+      newErrors.email = 'Email is required'
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = 'Please enter a valid email address'
+    }
+
+    // Password validation
+    if (!formData.password) {
+      newErrors.password = 'Password is required'
+    } else if (formData.password.length < 8) {
+      newErrors.password = 'Password must be at least 8 characters'
+    } else if (!/^(?=.*[a-zA-Z])(?=.*\d)/.test(formData.password)) {
+      newErrors.password = 'Password must contain at least one letter and one number'
+    }
+
+    // Confirm password validation
+    if (!formData.confirmPassword) {
+      newErrors.confirmPassword = 'Please confirm your password'
+    } else if (formData.password !== formData.confirmPassword) {
+      newErrors.confirmPassword = 'Passwords do not match'
+    }
+
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError('')
+    setErrors({})
 
-    if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match')
-      return
-    }
-
-    if (formData.password.length < 6) {
-      setError('Password must be at least 6 characters')
+    // Client-side validation
+    if (!validateForm()) {
       return
     }
 
@@ -58,19 +114,50 @@ export default function RegisterPage() {
       const data = await response.json()
 
       if (!response.ok) {
-        setError(data.error || 'Registration failed')
+        // Handle validation errors from the server
+        if (response.status === 422 && data.details?.errors) {
+          const serverErrors: FormErrors = {}
+          data.details.errors.forEach((error: any) => {
+            if (error.field && typeof error.field === 'string') {
+              serverErrors[error.field as keyof FormErrors] = error.message
+            }
+          })
+          
+          // If we have specific field errors, set them
+          if (Object.keys(serverErrors).length > 0) {
+            setErrors(serverErrors)
+          } else {
+            // Fallback to general error
+            setErrors({ general: data.error || 'Registration failed' })
+          }
+        } else {
+          // Handle other types of errors (409 for existing user, etc.)
+          if (response.status === 409) {
+            if (data.error.includes('email')) {
+              setErrors({ email: 'An account with this email already exists' })
+            } else if (data.error.includes('username')) {
+              setErrors({ name: 'This username is already taken' })
+            } else {
+              setErrors({ general: data.error })
+            }
+          } else {
+            setErrors({ general: data.error || 'Registration failed' })
+          }
+        }
       } else {
+        // Success - redirect to login
         router.push('/login?registered=true')
       }
     } catch (error) {
-      setError('An error occurred. Please try again.')
+      console.error('Registration error:', error)
+      setErrors({ general: 'Network error. Please check your connection and try again.' })
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center">
+    <div className="flex min-h-screen items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="text-2xl">Register</CardTitle>
@@ -80,55 +167,65 @@ export default function RegisterPage() {
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
-            {error && (
-              <div className="text-sm text-destructive">{error}</div>
+            {errors.general && (
+              <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md">
+                {errors.general}
+              </div>
             )}
-            <div className="space-y-2">
-              <Label htmlFor="name">Name</Label>
-              <Input
-                id="name"
-                name="name"
-                type="text"
-                placeholder="John Doe"
-                value={formData.name}
-                onChange={handleChange}
-                required
+            
+            <FormField
+              label="Name"
+              name="name"
+              type="text"
+              placeholder="John Doe"
+              value={formData.name}
+              onChange={handleChange}
+              error={errors.name}
+              required
+            />
+
+            <FormField
+              label="Email"
+              name="email"
+              type="email"
+              placeholder="name@example.com"
+              value={formData.email}
+              onChange={handleChange}
+              error={errors.email}
+              required
+            />
+
+            <FormField
+              label="Password"
+              name="password"
+              type="password"
+              placeholder="Enter your password"
+              value={formData.password}
+              onChange={handleChange}
+              error={errors.password}
+              helperText="Must be at least 8 characters with letters and numbers"
+              required
+            />
+
+            {showPasswordStrength && (
+              <PasswordStrength
+                password={formData.password}
+                variant="compact"
+                showStrengthBar={true}
+                showRequirements={true}
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                placeholder="name@example.com"
-                value={formData.email}
-                onChange={handleChange}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                value={formData.password}
-                onChange={handleChange}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirm Password</Label>
-              <Input
-                id="confirmPassword"
-                name="confirmPassword"
-                type="password"
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                required
-              />
-            </div>
+            )}
+
+            <FormField
+              label="Confirm Password"
+              name="confirmPassword"
+              type="password"
+              placeholder="Confirm your password"
+              value={formData.confirmPassword}
+              onChange={handleChange}
+              error={errors.confirmPassword}
+              required
+            />
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
             <Button type="submit" className="w-full" disabled={loading}>
