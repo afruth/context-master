@@ -17,7 +17,12 @@
     "db:generate": "prisma generate",
     "db:seed": "tsx prisma/seed.ts",
     "db:health": "tsx scripts/db-health-check.ts",
+    "db:seed:reset": "prisma migrate reset --skip-seed && prisma db seed",
+    "db:seed:dev": "tsx prisma/seed.ts",
     "typecheck": "tsc --noEmit"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.10.0",
