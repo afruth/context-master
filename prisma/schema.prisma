@@ -22,6 +22,7 @@ model User {
   updatedAt     DateTime  @updatedAt
   
   sessions      Session[]
+  players       Player[]
 }
 
 model Session {
@@ -33,4 +34,74 @@ model Session {
   
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+model Player {
+  id               String              @id @default(cuid())
+  name             String
+  ageYears         Int
+  ageDays          Int
+  position         String
+  nationality      String
+  speciality       String?
+  form             Int
+  stamina          Int
+  keeper           Int?
+  defending        Int?
+  playmaking       Int?
+  winger           Int?
+  passing          Int?
+  scoring          Int?
+  setPieces        Int?
+  purchaseDate     DateTime
+  purchasePrice    Int                 // Using Int to avoid decimal precision issues
+  fromTeam         String?
+  currentStatus    PlayerStatus        @default(OWNED)
+  userId           String
+  user             User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  saleTransactions SaleTransaction[]
+  salaryHistory    SalaryHistory[]
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@index([userId])
+  @@index([currentStatus])
+  @@index([purchaseDate])
+}
+
+model SaleTransaction {
+  id             String   @id @default(cuid())
+  playerId       String
+  player         Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  saleDate       DateTime
+  salePrice      Int      // Using Int to avoid decimal precision issues
+  percentageKept Int      // 0-93, stored as integer percentage
+  toTeam         String?
+  notes          String?
+  profitLoss     Int      // Calculated and stored profit/loss value
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([playerId])
+  @@index([saleDate])
+}
+
+model SalaryHistory {
+  id        String    @id @default(cuid())
+  playerId  String
+  player    Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  weeklyPay Int       // Using Int to avoid decimal precision issues
+  startDate DateTime
+  endDate   DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([playerId])
+  @@index([startDate])
+}
+
+enum PlayerStatus {
+  OWNED
+  SOLD
+  TRANSFERRED
 }
