@@ -31,6 +31,9 @@ export default async function Home() {
                 <Link href="/dashboard" className="w-full">
                   <Button className="w-full">Go to Dashboard</Button>
                 </Link>
+                <Link href="/ui-demo" className="w-full">
+                  <Button variant="outline" className="w-full">View UI Demo</Button>
+                </Link>
               </div>
             </div>
           ) : (
@@ -40,6 +43,9 @@ export default async function Home() {
               </Link>
               <Link href="/register" className="w-full">
                 <Button variant="outline" className="w-full">Register</Button>
+              </Link>
+              <Link href="/ui-demo" className="w-full">
+                <Button variant="secondary" className="w-full">View UI Demo</Button>
               </Link>
             </div>
           )}

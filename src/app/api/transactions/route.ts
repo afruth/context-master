@@ -3,7 +3,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { z } from 'zod'
 import { calculateProfit, calculateWeeksOwned, calculatePercentageKept, calculateSalaryCostForPeriod } from '@/lib/calculations'
-import type { SalaryHistory } from '@/types/hattrick'
+import type { SalaryHistory, TransactionQueryParams, PaginatedResponse } from '@/types/hattrick'
 
 // Helper function to transform Prisma data to our types
 function transformSalaryHistory(prismaHistory: any[]): SalaryHistory[] {
@@ -24,13 +24,39 @@ const CreateTransactionSchema = z.object({
 })
 
 const GetTransactionsQuerySchema = z.object({
-  page: z.string().optional().default('1'),
-  limit: z.string().optional().default('10'),
+  // Text search
+  search: z.string().optional(),
+  
+  // Filters
   playerId: z.string().cuid().optional(),
-  startDate: z.string().datetime().optional(),
-  endDate: z.string().datetime().optional()
+  profitMin: z.string().transform(Number).optional(),
+  profitMax: z.string().transform(Number).optional(),
+  dateFrom: z.string().transform((str) => new Date(str)).optional(),
+  dateTo: z.string().transform((str) => new Date(str)).optional(),
+  
+  // Sorting
+  sortBy: z.enum(['saleDate', 'profitLoss', 'salePrice', 'playerName']).default('saleDate'),
+  sortOrder: z.enum(['asc', 'desc']).default('desc'),
+  
+  // Pagination
+  page: z.string().transform(Number).refine(n => n >= 1, 'Page must be at least 1').default(() => 1),
+  limit: z.string().transform(Number).refine(n => n >= 1 && n <= 100, 'Limit must be between 1 and 100').default(() => 10)
 })
 
+/**
+ * GET /api/transactions - List all transactions for the authenticated user with advanced filtering, searching, and sorting
+ * 
+ * @param search - Text search across player name
+ * @param playerId - Filter by specific player ID
+ * @param profitMin - Minimum profit/loss value
+ * @param profitMax - Maximum profit/loss value
+ * @param dateFrom - Start date for transaction date range
+ * @param dateTo - End date for transaction date range
+ * @param sortBy - Sort by: saleDate, profitLoss, salePrice, playerName
+ * @param sortOrder - Sort order: asc, desc
+ * @param page - Page number (default: 1)
+ * @param limit - Items per page (default: 10, max: 100)
+ */
 export async function GET(request: NextRequest) {
   try {
     const session = await auth()
@@ -39,16 +65,30 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url)
-    const query = GetTransactionsQuerySchema.parse({
-      page: searchParams.get('page') || '1',
-      limit: searchParams.get('limit') || '10',
-      playerId: searchParams.get('playerId') || undefined,
-      startDate: searchParams.get('startDate') || undefined,
-      endDate: searchParams.get('endDate') || undefined
-    })
+    const queryParams = Object.fromEntries(searchParams)
+    
+    // Parse and validate query parameters
+    const parsedQuery = GetTransactionsQuerySchema.safeParse(queryParams)
+    if (!parsedQuery.success) {
+      return NextResponse.json(
+        { error: 'Invalid query parameters', details: parsedQuery.error.issues },
+        { status: 400 }
+      )
+    }
 
-    const page = parseInt(query.page)
-    const limit = parseInt(query.limit)
+    const {
+      search,
+      playerId,
+      profitMin,
+      profitMax,
+      dateFrom,
+      dateTo,
+      sortBy,
+      sortOrder,
+      page,
+      limit
+    } = parsedQuery.data
+
     const skip = (page - 1) * limit
 
     // Build where clause
@@ -58,18 +98,47 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    if (query.playerId) {
-      where.playerId = query.playerId
+    // Text search across player name
+    if (search) {
+      where.player.name = {
+        contains: search,
+        mode: 'insensitive'
+      }
     }
 
-    if (query.startDate || query.endDate) {
+    // Player ID filter
+    if (playerId) {
+      where.playerId = playerId
+    }
+
+    // Profit range filter
+    if (profitMin !== undefined || profitMax !== undefined) {
+      where.profitLoss = {}
+      if (profitMin !== undefined) {
+        where.profitLoss.gte = profitMin
+      }
+      if (profitMax !== undefined) {
+        where.profitLoss.lte = profitMax
+      }
+    }
+
+    // Date range filter
+    if (dateFrom || dateTo) {
       where.saleDate = {}
-      if (query.startDate) {
-        where.saleDate.gte = new Date(query.startDate)
+      if (dateFrom) {
+        where.saleDate.gte = dateFrom
       }
-      if (query.endDate) {
-        where.saleDate.lte = new Date(query.endDate)
+      if (dateTo) {
+        where.saleDate.lte = dateTo
       }
+    }
+
+    // Build orderBy clause
+    const orderBy: any = {}
+    if (sortBy === 'playerName') {
+      orderBy.player = { name: sortOrder }
+    } else {
+      orderBy[sortBy] = sortOrder
     }
 
     const [transactions, total] = await Promise.all([
@@ -87,9 +156,7 @@ export async function GET(request: NextRequest) {
             }
           }
         },
-        orderBy: {
-          saleDate: 'desc'
-        },
+        orderBy,
         skip,
         take: limit
       }),
@@ -98,7 +165,7 @@ export async function GET(request: NextRequest) {
 
     const totalPages = Math.ceil(total / limit)
 
-    return NextResponse.json({
+    const response: PaginatedResponse<typeof transactions[0]> = {
       data: transactions,
       pagination: {
         page,
@@ -106,7 +173,9 @@ export async function GET(request: NextRequest) {
         total,
         totalPages
       }
-    })
+    }
+
+    return NextResponse.json(response)
   } catch (error) {
     console.error('Error fetching transactions:', error)
     if (error instanceof z.ZodError) {

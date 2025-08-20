@@ -29,6 +29,8 @@ const updatePlayerSchema = z.object({
   purchaseDate: z.string().transform((str) => new Date(str)).optional(),
   purchasePrice: z.number().int().min(0).optional(),
   fromTeam: z.string().optional(),
+  estimatedSaleValue: z.number().int().min(0).optional(),
+  weeklyPay: z.number().int().min(0).optional(),
   currentStatus: z.enum(['OWNED', 'SOLD', 'TRANSFERRED']).optional()
 })
 
@@ -51,7 +53,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { id } = params
+    const { id } = await params
 
     // Fetch player with all related data
     const player = await prisma.player.findFirst({
@@ -167,6 +169,7 @@ export async function GET(
         hattrickWeek: 0, // TODO: Calculate from date
         hattrickSeason: 0 // TODO: Calculate from date
       },
+      estimatedSaleValue: player.estimatedSaleValue || undefined,
       currentStatus: player.currentStatus as PlayerStatus,
       userId: player.userId,
       createdAt: player.createdAt,
@@ -204,7 +207,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { id } = params
+    const { id } = await params
     const body = await request.json()
 
     const validationResult = updatePlayerSchema.safeParse(body)
@@ -251,6 +254,7 @@ export async function PUT(
         ...(data.purchaseDate && { purchaseDate: data.purchaseDate }),
         ...(data.purchasePrice !== undefined && { purchasePrice: data.purchasePrice }),
         ...(data.fromTeam !== undefined && { fromTeam: data.fromTeam }),
+        ...(data.estimatedSaleValue !== undefined && { estimatedSaleValue: data.estimatedSaleValue }),
         ...(data.currentStatus && { currentStatus: data.currentStatus })
       },
       include: {
@@ -259,41 +263,101 @@ export async function PUT(
       }
     })
 
+    // Handle salary history update if weeklyPay is provided
+    if (data.weeklyPay !== undefined) {
+      // Get current active salary
+      const currentSalary = await prisma.salaryHistory.findFirst({
+        where: {
+          playerId: id,
+          endDate: null
+        }
+      })
+      
+      // Only update if value has changed
+      if (!currentSalary || currentSalary.weeklyPay !== data.weeklyPay) {
+        const now = new Date()
+        
+        if (data.weeklyPay > 0) {
+          // End current salary history if exists
+          if (currentSalary) {
+            await prisma.salaryHistory.update({
+              where: { id: currentSalary.id },
+              data: { endDate: now }
+            })
+          }
+          
+          // Create new salary history entry starting from now
+          await prisma.salaryHistory.create({
+            data: {
+              playerId: id,
+              weeklyPay: data.weeklyPay,
+              startDate: now,
+              // endDate is null for current salary
+            }
+          })
+        } else {
+          // If weeklyPay is 0, just end current salary history
+          if (currentSalary) {
+            await prisma.salaryHistory.update({
+              where: { id: currentSalary.id },
+              data: { endDate: now }
+            })
+          }
+        }
+      }
+    }
+
+    // Refetch player data to include updated salary history
+    const finalPlayer = await prisma.player.findUnique({
+      where: { id },
+      include: {
+        saleTransactions: true,
+        salaryHistory: {
+          orderBy: { startDate: 'desc' }
+        }
+      }
+    })
+
+    if (!finalPlayer) {
+      return NextResponse.json({ error: 'Player not found after update' }, { status: 404 })
+    }
+
     // Transform response
     const transformedPlayer = {
-      id: updatedPlayer.id,
-      name: updatedPlayer.name,
+      id: finalPlayer.id,
+      name: finalPlayer.name,
       age: {
-        years: updatedPlayer.ageYears,
-        days: updatedPlayer.ageDays
+        years: finalPlayer.ageYears,
+        days: finalPlayer.ageDays
       },
-      position: updatedPlayer.position,
-      nationality: updatedPlayer.nationality,
-      speciality: updatedPlayer.speciality || undefined,
-      form: updatedPlayer.form,
-      stamina: updatedPlayer.stamina,
+      position: finalPlayer.position,
+      nationality: finalPlayer.nationality,
+      speciality: finalPlayer.speciality || undefined,
+      form: finalPlayer.form,
+      stamina: finalPlayer.stamina,
       skills: {
-        keeper: updatedPlayer.keeper || undefined,
-        defending: updatedPlayer.defending || undefined,
-        playmaking: updatedPlayer.playmaking || undefined,
-        winger: updatedPlayer.winger || undefined,
-        passing: updatedPlayer.passing || undefined,
-        scoring: updatedPlayer.scoring || undefined,
-        setPieces: updatedPlayer.setPieces || undefined
+        keeper: finalPlayer.keeper || undefined,
+        defending: finalPlayer.defending || undefined,
+        playmaking: finalPlayer.playmaking || undefined,
+        winger: finalPlayer.winger || undefined,
+        passing: finalPlayer.passing || undefined,
+        scoring: finalPlayer.scoring || undefined,
+        setPieces: finalPlayer.setPieces || undefined
       },
       purchaseDetails: {
-        date: updatedPlayer.purchaseDate,
-        price: updatedPlayer.purchasePrice,
-        fromTeam: updatedPlayer.fromTeam || undefined,
+        date: finalPlayer.purchaseDate,
+        price: finalPlayer.purchasePrice,
+        fromTeam: finalPlayer.fromTeam || undefined,
         hattrickWeek: 0, // TODO: Calculate from date
         hattrickSeason: 0 // TODO: Calculate from date
       },
-      currentStatus: updatedPlayer.currentStatus as PlayerStatus,
-      userId: updatedPlayer.userId,
-      createdAt: updatedPlayer.createdAt,
-      updatedAt: updatedPlayer.updatedAt,
-      saleTransactions: updatedPlayer.saleTransactions,
-      salaryHistory: updatedPlayer.salaryHistory.map(sh => ({
+      estimatedSaleValue: finalPlayer.estimatedSaleValue || undefined,
+      currentStatus: finalPlayer.currentStatus as PlayerStatus,
+      userId: finalPlayer.userId,
+      createdAt: finalPlayer.createdAt,
+      updatedAt: finalPlayer.updatedAt,
+      saleTransactions: finalPlayer.saleTransactions,
+      salaryHistory: finalPlayer.salaryHistory.map(sh => ({
         ...sh,
         endDate: sh.endDate || undefined,
         createdAt: sh.createdAt,
@@ -327,7 +391,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { id } = params
+    const { id } = await params
 
     // Check if player exists and belongs to user
     const existingPlayer = await prisma.player.findFirst({

@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { Toaster } from "@/components/ui/toaster";
 
 export const metadata: Metadata = {
-  title: "Context Master - Next.js Auth App",
-  description: "A modern Next.js application with authentication, Prisma, and SQLite",
+  title: "Steptrick - Hattrick Player Trading Manager",
+  description: "Advanced step-trading management application for Hattrick players",
 };
 
 export default function RootLayout({
@@ -15,6 +16,7 @@ export default function RootLayout({
     <html lang="en">
       <body className="antialiased">
         {children}
+        <Toaster />
       </body>
     </html>
   );

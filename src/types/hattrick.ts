@@ -38,6 +38,7 @@ export interface Player {
   stamina: number;
   skills: PlayerSkills;
   purchaseDetails: PurchaseDetails;
+  estimatedSaleValue?: number;
   currentStatus: PlayerStatus;
   userId: string;
   createdAt: Date;
@@ -78,6 +79,14 @@ export interface SalaryHistory {
   updatedAt: Date;
 }
 
+export interface SalaryBreakdown {
+  salaryPeriod: SalaryHistory;
+  periodStart: Date;
+  periodEnd: Date;
+  payments: number;
+  cost: number;
+}
+
 // Enums
 export type PlayerStatus = 'OWNED' | 'SOLD' | 'TRANSFERRED';
 
@@ -106,8 +115,8 @@ export interface AgeProgressionResult {
 
 export interface PercentageKeptResult {
   percentageKept: number;
-  isMaximum: boolean; // true if at 93% cap
-  weeksToMaximum?: number; // weeks remaining to reach 93%
+  isMaximum: boolean; // true if at 95% cap
+  daysToMaximum?: number; // days remaining to reach 95%
 }
 
 export interface CurrentProjectedProfitResult {
@@ -139,7 +148,7 @@ export interface AgeProgressionInput {
 }
 
 export interface PercentageKeptInput {
-  weeksOwned: number;
+  daysOwned: number;
 }
 
 export interface CurrentProjectedProfitInput {
@@ -221,9 +230,10 @@ export type HattrickConstants = {
   DAYS_PER_HATTRICK_YEAR: 112;
   WEEKS_PER_HATTRICK_YEAR: 16;
   DAYS_PER_WEEK: 7;
-  MAX_PERCENTAGE_KEPT: 93;
-  MIN_PERCENTAGE_KEPT: 0;
+  MAX_PERCENTAGE_KEPT: 95;
+  MIN_PERCENTAGE_KEPT: 85;
   SALARY_CALCULATION_DAY: 'friday';
+  HATTRICK_COMMISSION: 3;
 };
 
 // Export validation schemas types (to be used with Zod)
@@ -246,6 +256,8 @@ export interface CreatePlayerInput {
   purchaseDate: Date;
   purchasePrice: number;
   fromTeam?: string;
+  estimatedSaleValue?: number;
+  weeklyPay?: number;
 }
 
 export interface UpdatePlayerInput extends Partial<CreatePlayerInput> {
@@ -283,4 +295,146 @@ export interface PriceHistory {
   transactionCount: number;
   highPrice: number;
   lowPrice: number;
+}
+
+// Enhanced API query parameter interfaces
+export interface PlayerQueryParams {
+  // Text search
+  search?: string;
+  
+  // Filters
+  status?: PlayerStatus;
+  position?: string;
+  ageMin?: number;
+  ageMax?: number;
+  priceMin?: number;
+  priceMax?: number;
+  purchaseDateFrom?: string;
+  purchaseDateTo?: string;
+  
+  // Skill level filters
+  keeperMin?: number;
+  keeperMax?: number;
+  defendingMin?: number;
+  defendingMax?: number;
+  playmakingMin?: number;
+  playmakingMax?: number;
+  wingerMin?: number;
+  wingerMax?: number;
+  passingMin?: number;
+  passingMax?: number;
+  scoringMin?: number;
+  scoringMax?: number;
+  setPiecesMin?: number;
+  setPiecesMax?: number;
+  
+  // Sorting
+  sortBy?: 'name' | 'age' | 'position' | 'purchasePrice' | 'purchaseDate' | 'projectedProfit';
+  sortOrder?: 'asc' | 'desc';
+  
+  // Pagination
+  page?: number;
+  limit?: number;
+}
+
+export interface TransactionQueryParams {
+  // Text search
+  search?: string;
+  
+  // Filters
+  playerId?: string;
+  profitMin?: number;
+  profitMax?: number;
+  dateFrom?: string;
+  dateTo?: string;
+  
+  // Sorting
+  sortBy?: 'saleDate' | 'profitLoss' | 'salePrice' | 'playerName';
+  sortOrder?: 'asc' | 'desc';
+  
+  // Pagination
+  page?: number;
+  limit?: number;
+}
+
+export interface SearchParams {
+  query: string;
+  type?: 'players' | 'transactions' | 'all';
+  limit?: number;
+}
+
+// Enhanced API response interfaces
+export interface PaginatedResponse<T> {
+  data: T[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export interface SearchResult {
+  players: Player[];
+  transactions: SaleTransaction[];
+  totalResults: number;
+}
+
+export interface AnalyticsData {
+  monthlyProfits: MonthlyProfitData[];
+  positionStats: PositionStats[];
+  ageGroupStats: AgeGroupStats[];
+  profitTrends: ProfitTrendData[];
+  summary: AnalyticsSummary;
+  playerValueDistribution?: PlayerValueDistribution[];
+}
+
+export interface PlayerValueDistribution {
+  range: string;
+  min: number;
+  max: number;
+  count: number;
+  totalValue: number;
+}
+
+export interface MonthlyProfitData {
+  month: string;
+  year: number;
+  totalProfit: number;
+  transactionCount: number;
+  averageProfit: number;
+}
+
+export interface PositionStats {
+  position: string;
+  playerCount: number;
+  totalProfit: number;
+  averageProfit: number;
+  averageHoldingPeriod: number;
+  successRate: number;
+}
+
+export interface AgeGroupStats {
+  ageGroup: string;
+  playerCount: number;
+  totalProfit: number;
+  averageProfit: number;
+  averageHoldingPeriod: number;
+}
+
+export interface ProfitTrendData {
+  date: string;
+  cumulativeProfit: number;
+  monthlyProfit: number;
+  transactionCount: number;
+}
+
+export interface AnalyticsSummary {
+  totalPlayers: number;
+  totalTransactions: number;
+  totalProfit: number;
+  averageProfit: number;
+  profitMargin: number;
+  averageHoldingPeriod: number;
+  successRate: number;
 }

@@ -1,206 +1,105 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Input } from "@/components/ui/input"
 import { 
   PlusCircle, 
   Eye, 
   Edit, 
   Trash2, 
   ShoppingCart,
-  Search,
-  Filter,
-  TrendingUp,
-  TrendingDown
+  Loader2
 } from "lucide-react"
-import type { PlayerWithCalculations, PlayerStatus } from "@/types/hattrick"
+import type { PlayerWithCalculations, PaginatedResponse } from "@/types/hattrick"
+import { playersApi, ApiError } from "@/lib/api"
+import { TableSkeleton } from "@/components/ui/skeleton"
+import { RecordSaleModal } from "@/components/record-sale-modal"
+import { ExportButton } from "@/components/export-button"
 
-// Mock data - replace with actual API calls
-const mockPlayers: PlayerWithCalculations[] = [
-  {
-    id: "1",
-    name: "João Silva",
-    age: { years: 18, days: 45 },
-    position: "Winger",
-    nationality: "Brazil",
-    speciality: "Quick",
-    form: 8,
-    stamina: 7,
-    skills: {
-      winger: 9,
-      passing: 6,
-      defending: 4
-    },
-    purchaseDetails: {
-      date: new Date("2024-07-15"),
-      price: 120000,
-      fromTeam: "FC Barcelona B",
-      hattrickWeek: 8,
-      hattrickSeason: 85
-    },
-    currentStatus: "OWNED" as PlayerStatus,
-    userId: "user1",
-    createdAt: new Date("2024-07-15"),
-    updatedAt: new Date("2024-08-01"),
-    estimatedProfit: 45000,
-    currentValue: 165000,
-    weeksOwned: 5,
-    saleTransactions: [],
-    salaryHistory: []
-  },
-  {
-    id: "2",
-    name: "Marcus Johnson",
-    age: { years: 19, days: 12 },
-    position: "Central Defender",
-    nationality: "England",
-    form: 7,
-    stamina: 8,
-    skills: {
-      defending: 8,
-      playmaking: 5,
-      passing: 6
-    },
-    purchaseDetails: {
-      date: new Date("2024-06-01"),
-      price: 220000,
-      fromTeam: "Chelsea Youth",
-      hattrickWeek: 2,
-      hattrickSeason: 85
-    },
-    currentStatus: "SOLD" as PlayerStatus,
-    userId: "user1",
-    createdAt: new Date("2024-06-01"),
-    updatedAt: new Date("2024-08-12"),
-    totalProfit: 65000,
-    profitMargin: 29.5,
-    weeksOwned: 10,
-    saleTransactions: [{
-      id: "sale1",
-      playerId: "2",
-      saleDate: new Date("2024-08-12"),
-      salePrice: 285000,
-      percentageKept: 85,
-      toTeam: "Real Madrid C",
-      hattrickWeek: 11,
-      hattrickSeason: 85,
-      profitLoss: 65000
-    }],
-    salaryHistory: []
-  },
-  {
-    id: "3",
-    name: "Pierre Dubois",
-    age: { years: 17, days: 89 },
-    position: "Playmaker",
-    nationality: "France",
-    speciality: "Technical",
-    form: 9,
-    stamina: 6,
-    skills: {
-      playmaking: 10,
-      passing: 8,
-      scoring: 5
-    },
-    purchaseDetails: {
-      date: new Date("2024-08-10"),
-      price: 95000,
-      fromTeam: "PSG Youth",
-      hattrickWeek: 12,
-      hattrickSeason: 85
-    },
-    currentStatus: "OWNED" as PlayerStatus,
-    userId: "user1",
-    createdAt: new Date("2024-08-10"),
-    updatedAt: new Date("2024-08-10"),
-    estimatedProfit: 125000,
-    currentValue: 220000,
-    weeksOwned: 1,
-    saleTransactions: [],
-    salaryHistory: []
-  }
-]
-
-type SortField = 'name' | 'position' | 'age' | 'purchasePrice' | 'estimatedProfit' | 'weeksOwned'
-type SortDirection = 'asc' | 'desc'
+// Filter components
+import { PlayerSearchBar } from "@/components/filters/PlayerSearchBar"
+import { PlayerFilters } from "@/components/filters/PlayerFilters"
+import { SortControls } from "@/components/filters/SortControls"
+import { FilterSummary } from "@/components/filters/FilterSummary"
+import { usePlayerFilters } from "@/hooks/usePlayerFilters"
 
 export default function PlayersPage() {
-  const [players] = useState<PlayerWithCalculations[]>(mockPlayers)
-  const [statusFilter, setStatusFilter] = useState<string>("all")
-  const [positionFilter, setPositionFilter] = useState<string>("all")
-  const [searchQuery, setSearchQuery] = useState<string>("")
-  const [sortField, setSortField] = useState<SortField>('name')
-  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
+  const [response, setResponse] = useState<PaginatedResponse<PlayerWithCalculations> | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [selectedPlayerForSale, setSelectedPlayerForSale] = useState<PlayerWithCalculations | null>(null)
+  const [saleModalOpen, setSaleModalOpen] = useState(false)
+  
+  const {
+    filters,
+    isLoading,
+    setIsLoading,
+    updateFilters,
+    clearFilters,
+    clearFilter,
+    updateSearch,
+    updateSort,
+    updatePagination
+  } = usePlayerFilters()
 
-  // Filter and sort players
-  const filteredPlayers = players.filter(player => {
-    const matchesStatus = statusFilter === "all" || player.currentStatus.toLowerCase() === statusFilter
-    const matchesPosition = positionFilter === "all" || player.position.toLowerCase() === positionFilter.toLowerCase()
-    const matchesSearch = searchQuery === "" || 
-      player.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      player.nationality.toLowerCase().includes(searchQuery.toLowerCase())
-    
-    return matchesStatus && matchesPosition && matchesSearch
-  }).sort((a, b) => {
-    let aValue: any
-    let bValue: any
-
-    switch (sortField) {
-      case 'name':
-        aValue = a.name.toLowerCase()
-        bValue = b.name.toLowerCase()
-        break
-      case 'position':
-        aValue = a.position.toLowerCase()
-        bValue = b.position.toLowerCase()
-        break
-      case 'age':
-        aValue = a.age.years * 365 + a.age.days
-        bValue = b.age.years * 365 + b.age.days
-        break
-      case 'purchasePrice':
-        aValue = a.purchaseDetails.price
-        bValue = b.purchaseDetails.price
-        break
-      case 'estimatedProfit':
-        aValue = a.estimatedProfit || a.totalProfit || 0
-        bValue = b.estimatedProfit || b.totalProfit || 0
-        break
-      case 'weeksOwned':
-        aValue = a.weeksOwned || 0
-        bValue = b.weeksOwned || 0
-        break
-      default:
-        aValue = a.name.toLowerCase()
-        bValue = b.name.toLowerCase()
+  // Fetch players data
+  useEffect(() => {
+    const fetchPlayers = async () => {
+      try {
+        setIsLoading(true)
+        setError(null)
+        const result = await playersApi.getAll(filters)
+        setResponse(result)
+      } catch (err) {
+        console.error('Error fetching players:', err)
+        setError(err instanceof ApiError ? err.message : 'Failed to fetch players')
+      } finally {
+        setIsLoading(false)
+      }
     }
 
-    if (sortDirection === 'asc') {
-      return aValue < bValue ? -1 : aValue > bValue ? 1 : 0
-    } else {
-      return aValue > bValue ? -1 : aValue < bValue ? 1 : 0
-    }
-  })
+    fetchPlayers()
+  }, [filters, setIsLoading])
 
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
-    } else {
-      setSortField(field)
-      setSortDirection('asc')
+  // Handle player deletion
+  const handleDeletePlayer = async (playerId: string) => {
+    if (!confirm("Are you sure you want to delete this player? This action cannot be undone.")) {
+      return
+    }
+
+    try {
+      await playersApi.delete(playerId)
+      // Refresh the current page
+      const result = await playersApi.getAll(filters)
+      setResponse(result)
+    } catch (err) {
+      console.error('Error deleting player:', err)
+      alert('Failed to delete player. Please try again.')
     }
   }
 
-  const getSortIcon = (field: SortField) => {
-    if (sortField !== field) return null
-    return sortDirection === 'asc' ? <TrendingUp className="h-3 w-3 ml-1" /> : <TrendingDown className="h-3 w-3 ml-1" />
+  // Handle opening record sale modal
+  const handleRecordSale = (player: PlayerWithCalculations) => {
+    setSelectedPlayerForSale(player)
+    setSaleModalOpen(true)
   }
+
+  // Handle sale recorded - refresh players data
+  const handleSaleRecorded = async () => {
+    try {
+      const result = await playersApi.getAll(filters)
+      setResponse(result)
+    } catch (err) {
+      console.error('Error refreshing players:', err)
+    }
+  }
+
+  const players = response?.data || []
+  const pagination = response?.pagination
+  const totalResults = pagination?.total || 0
 
   return (
     <div className="space-y-8">
@@ -212,64 +111,51 @@ export default function PlayersPage() {
             Manage your player portfolio and track performance
           </p>
         </div>
-        <Button asChild>
-          <Link href="/players/add">
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Add Player
-          </Link>
-        </Button>
+        <div className="flex gap-2">
+          <ExportButton 
+            exportType="players"
+            label="Export Players"
+            filters={filters}
+          />
+          <Button asChild>
+            <Link href="/players/add">
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Add Player
+            </Link>
+          </Button>
+        </div>
       </div>
 
-      {/* Filters */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="h-4 w-4" />
-            Filters & Search
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col gap-4 md:flex-row md:items-center">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search players by name or nationality..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-            
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full md:w-[180px]">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="owned">Owned</SelectItem>
-                <SelectItem value="sold">Sold</SelectItem>
-              </SelectContent>
-            </Select>
+      {/* Search Bar */}
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <PlayerSearchBar
+          value={filters.search || ""}
+          onChange={updateSearch}
+          onSearch={updateSearch}
+          className="flex-1 md:max-w-md"
+        />
+        <SortControls
+          sortBy={filters.sortBy || 'purchaseDate'}
+          sortOrder={filters.sortOrder || 'desc'}
+          onSortChange={updateSort}
+        />
+      </div>
 
-            <Select value={positionFilter} onValueChange={setPositionFilter}>
-              <SelectTrigger className="w-full md:w-[180px]">
-                <SelectValue placeholder="Filter by position" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Positions</SelectItem>
-                <SelectItem value="goalkeeper">Goalkeeper</SelectItem>
-                <SelectItem value="central defender">Central Defender</SelectItem>
-                <SelectItem value="wingback">Wingback</SelectItem>
-                <SelectItem value="winger">Winger</SelectItem>
-                <SelectItem value="playmaker">Playmaker</SelectItem>
-                <SelectItem value="forward">Forward</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Advanced Filters */}
+      <PlayerFilters
+        filters={filters}
+        onFiltersChange={updateFilters}
+        onReset={clearFilters}
+      />
+
+      {/* Filter Summary */}
+      <FilterSummary
+        filters={filters}
+        onClearFilter={clearFilter}
+        onClearAll={clearFilters}
+        totalResults={players.length}
+        totalItems={totalResults}
+      />
 
       {/* Players Table */}
       <Card>
@@ -278,67 +164,36 @@ export default function PlayersPage() {
             <div>
               <CardTitle>Player Portfolio</CardTitle>
               <CardDescription>
-                {filteredPlayers.length} of {players.length} players
+                {pagination ? 
+                  `Page ${pagination.page} of ${pagination.totalPages} (${pagination.total} total players)` :
+                  `${players.length} players`
+                }
               </CardDescription>
             </div>
+            {isLoading && (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            )}
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
+          <div className="overflow-x-auto">
+            <Table>
             <TableHeader>
               <TableRow>
-                <TableHead 
-                  className="cursor-pointer select-none flex items-center"
-                  onClick={() => handleSort('name')}
-                >
-                  Player {getSortIcon('name')}
-                </TableHead>
-                <TableHead 
-                  className="cursor-pointer select-none"
-                  onClick={() => handleSort('position')}
-                >
-                  <div className="flex items-center">
-                    Position {getSortIcon('position')}
-                  </div>
-                </TableHead>
-                <TableHead 
-                  className="cursor-pointer select-none"
-                  onClick={() => handleSort('age')}
-                >
-                  <div className="flex items-center">
-                    Age {getSortIcon('age')}
-                  </div>
-                </TableHead>
+                <TableHead>Player</TableHead>
+                <TableHead>Position</TableHead>
+                <TableHead>Age</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead 
-                  className="cursor-pointer select-none"
-                  onClick={() => handleSort('purchasePrice')}
-                >
-                  <div className="flex items-center">
-                    Purchase Price {getSortIcon('purchasePrice')}
-                  </div>
-                </TableHead>
-                <TableHead 
-                  className="cursor-pointer select-none"
-                  onClick={() => handleSort('estimatedProfit')}
-                >
-                  <div className="flex items-center">
-                    Profit Projection {getSortIcon('estimatedProfit')}
-                  </div>
-                </TableHead>
-                <TableHead 
-                  className="cursor-pointer select-none"
-                  onClick={() => handleSort('weeksOwned')}
-                >
-                  <div className="flex items-center">
-                    Weeks Owned {getSortIcon('weeksOwned')}
-                  </div>
-                </TableHead>
+                <TableHead>Purchase Price</TableHead>
+                <TableHead>Profit Projection</TableHead>
+                <TableHead>Weeks Owned</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredPlayers.map((player) => (
+              {isLoading ? (
+                <TableSkeleton rows={6} cols={8} />
+              ) : players.map((player) => (
                 <TableRow key={player.id}>
                   <TableCell>
                     <div className="flex flex-col">
@@ -407,14 +262,21 @@ export default function PlayersPage() {
                       </Button>
 
                       {player.currentStatus === 'OWNED' && (
-                        <Button variant="ghost" size="sm" asChild>
-                          <Link href={`/players/${player.id}/sell`}>
-                            <ShoppingCart className="h-4 w-4" />
-                          </Link>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => handleRecordSale(player)}
+                          title="Record Sale"
+                        >
+                          <ShoppingCart className="h-4 w-4" />
                         </Button>
                       )}
 
-                      <Button variant="ghost" size="sm">
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => handleDeletePlayer(player.id)}
+                      >
                         <Trash2 className="h-4 w-4 text-red-500" />
                       </Button>
                     </div>
@@ -424,7 +286,14 @@ export default function PlayersPage() {
             </TableBody>
           </Table>
 
-          {filteredPlayers.length === 0 && (
+          {error && (
+            <div className="text-center py-8">
+              <p className="text-red-500 mb-4">{error}</p>
+              <Button onClick={() => window.location.reload()}>Retry</Button>
+            </div>
+          )}
+
+          {!isLoading && !error && players.length === 0 && (
             <div className="text-center py-8">
               <p className="text-muted-foreground">No players found matching your criteria.</p>
               <Button className="mt-4" asChild>
@@ -432,8 +301,63 @@ export default function PlayersPage() {
               </Button>
             </div>
           )}
+          </div>
         </CardContent>
       </Card>
+
+      {/* Pagination */}
+      {pagination && pagination.totalPages > 1 && (
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-sm text-muted-foreground">
+            Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} players
+          </div>
+          <div className="flex items-center gap-2 justify-center sm:justify-end">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => updatePagination(pagination.page - 1)}
+              disabled={pagination.page <= 1 || isLoading}
+            >
+              Previous
+            </Button>
+            <div className="flex items-center gap-1">
+              {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                const pageNum = Math.max(1, Math.min(pagination.totalPages - 4, pagination.page - 2)) + i
+                return (
+                  <Button
+                    key={pageNum}
+                    variant={pageNum === pagination.page ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => updatePagination(pageNum)}
+                    disabled={isLoading}
+                    className="w-8"
+                  >
+                    {pageNum}
+                  </Button>
+                )
+              })}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => updatePagination(pagination.page + 1)}
+              disabled={pagination.page >= pagination.totalPages || isLoading}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Record Sale Modal */}
+      {selectedPlayerForSale && (
+        <RecordSaleModal
+          player={selectedPlayerForSale}
+          open={saleModalOpen}
+          onOpenChange={setSaleModalOpen}
+          onSaleRecorded={handleSaleRecorded}
+        />
+      )}
     </div>
   )
 }

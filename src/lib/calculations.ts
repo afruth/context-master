@@ -27,10 +27,38 @@ const HATTRICK_CONSTANTS: HattrickConstants = {
   DAYS_PER_HATTRICK_YEAR: 112,
   WEEKS_PER_HATTRICK_YEAR: 16,
   DAYS_PER_WEEK: 7,
-  MAX_PERCENTAGE_KEPT: 93,
-  MIN_PERCENTAGE_KEPT: 0,
-  SALARY_CALCULATION_DAY: 'friday'
+  MAX_PERCENTAGE_KEPT: 95,
+  MIN_PERCENTAGE_KEPT: 85, // Minimum at day 0 (100% - 12% - 3%)
+  SALARY_CALCULATION_DAY: 'friday',
+  HATTRICK_COMMISSION: 3 // Fixed 3% commission Hattrick takes
 };
+
+// Official Hattrick transfer fee table (base fee before 3% commission)
+const TRANSFER_FEE_TABLE = new Map([
+  [0, 12.00],
+  [1, 10.45],
+  [2, 9.95],
+  [3, 9.59],
+  [4, 9.30],
+  [5, 9.05],
+  [6, 8.83],
+  [7, 8.62],   // 1 week
+  [14, 7.55],  // 2 weeks
+  [21, 6.76],  // 3 weeks
+  [28, 6.12],  // 4 weeks
+  [35, 5.57],  // 5 weeks
+  [42, 5.09],  // 6 weeks
+  [49, 4.65],  // 7 weeks
+  [56, 4.24],  // 8 weeks
+  [63, 3.87],  // 9 weeks
+  [70, 3.52],  // 10 weeks
+  [77, 3.19],  // 11 weeks
+  [84, 2.88],  // 12 weeks
+  [91, 2.58],  // 13 weeks
+  [98, 2.30],  // 14 weeks
+  [105, 2.03], // 15 weeks
+  [112, 2.00], // 16+ weeks (minimum fee)
+]);
 
 /**
  * Calculate profit/loss for a completed player transaction
@@ -144,45 +172,77 @@ export function calculateAgeProgression(input: AgeProgressionInput): AgeProgress
 }
 
 /**
- * Calculate percentage kept based on ownership duration
+ * Calculate percentage kept based on ownership duration using official Hattrick transfer fee table
  * 
- * In Hattrick, the percentage you keep from a sale increases with ownership time,
- * reaching a maximum of 93% after sufficient ownership period.
+ * Hattrick uses a transfer fee table based on days owned, with the formula:
+ * Percentage Kept = 100% - Base Transfer Fee% - 3% Hattrick Commission
  * 
- * @param input - Ownership duration information
+ * @param input - Ownership duration information (in days)
  * @returns Percentage kept calculation result
  */
 export function calculatePercentageKept(input: PercentageKeptInput): PercentageKeptResult {
-  const { weeksOwned } = input;
+  const { daysOwned } = input;
 
-  if (weeksOwned < 0) {
-    throw new Error('Weeks owned must be positive');
+  if (daysOwned < 0) {
+    throw new Error('Days owned must be positive');
   }
 
-  // Hattrick percentage calculation
-  // The exact formula may vary, but generally increases over time to max 93%
-  // This is a simplified model - actual Hattrick mechanics may be more complex
-  let percentageKept: number;
+  // Get base transfer fee from official Hattrick table
+  const baseFee = getTransferFeeFromTable(daysOwned);
   
-  if (weeksOwned === 0) {
-    percentageKept = HATTRICK_CONSTANTS.MIN_PERCENTAGE_KEPT;
-  } else if (weeksOwned >= 16) {
-    // Maximum percentage after 16 weeks (1 Hattrick year)
-    percentageKept = HATTRICK_CONSTANTS.MAX_PERCENTAGE_KEPT;
-  } else {
-    // Linear progression from 0% to 93% over 16 weeks
-    // In reality, this might follow a different curve
-    percentageKept = (weeksOwned / 16) * HATTRICK_CONSTANTS.MAX_PERCENTAGE_KEPT;
-  }
+  // Calculate percentage kept: 100% - base fee - 3% commission
+  const percentageKept = 100 - baseFee - HATTRICK_CONSTANTS.HATTRICK_COMMISSION;
 
   const isMaximum = percentageKept >= HATTRICK_CONSTANTS.MAX_PERCENTAGE_KEPT;
-  const weeksToMaximum = isMaximum ? 0 : Math.max(0, 16 - weeksOwned);
+  const daysToMaximum = isMaximum ? 0 : Math.max(0, 112 - daysOwned); // 16 weeks = 112 days
 
   return {
     percentageKept: Math.round(percentageKept * 100) / 100, // Round to 2 decimal places
     isMaximum,
-    weeksToMaximum: isMaximum ? undefined : weeksToMaximum
+    daysToMaximum: isMaximum ? undefined : daysToMaximum
   };
+}
+
+/**
+ * Get transfer fee percentage from the official Hattrick table
+ * 
+ * @param daysOwned - Number of days the player has been owned
+ * @returns Base transfer fee percentage
+ */
+function getTransferFeeFromTable(daysOwned: number): number {
+  // Handle cases beyond the table (16+ weeks)
+  if (daysOwned >= 112) {
+    return 2.00; // Minimum fee for 16+ weeks
+  }
+
+  // Get exact match from table
+  if (TRANSFER_FEE_TABLE.has(daysOwned)) {
+    return TRANSFER_FEE_TABLE.get(daysOwned)!;
+  }
+
+  // Interpolate for days not in the table (between week markers)
+  const sortedDays = Array.from(TRANSFER_FEE_TABLE.keys()).sort((a, b) => a - b);
+  
+  // Find the two closest points for interpolation
+  let lowerDay = 0;
+  let upperDay = 112;
+  
+  for (let i = 0; i < sortedDays.length - 1; i++) {
+    if (daysOwned > sortedDays[i] && daysOwned < sortedDays[i + 1]) {
+      lowerDay = sortedDays[i];
+      upperDay = sortedDays[i + 1];
+      break;
+    }
+  }
+
+  const lowerFee = TRANSFER_FEE_TABLE.get(lowerDay)!;
+  const upperFee = TRANSFER_FEE_TABLE.get(upperDay)!;
+  
+  // Linear interpolation
+  const ratio = (daysOwned - lowerDay) / (upperDay - lowerDay);
+  const interpolatedFee = lowerFee + (upperFee - lowerFee) * ratio;
+  
+  return Math.round(interpolatedFee * 100) / 100; // Round to 2 decimal places
 }
 
 /**
@@ -204,9 +264,9 @@ export function calculateCurrentProjectedProfit(
     saleDate: currentDate
   });
 
-  // Calculate current percentage kept
+  // Calculate current percentage kept (using days)
   const percentageResult = calculatePercentageKept({
-    weeksOwned: weeksOwnedResult.weeksOwned
+    daysOwned: weeksOwnedResult.daysOwned
   });
 
   // Calculate total salary cost to date
@@ -246,11 +306,11 @@ export function calculateCurrentProjectedProfit(
 }
 
 /**
- * Calculate total salary cost for a specific period
+ * Calculate total salary cost for a specific period using Hattrick Friday-based rules
  * 
  * @param salaryHistory - Historical salary data
- * @param startDate - Start of period
- * @param endDate - End of period
+ * @param startDate - Start of period (purchase date)
+ * @param endDate - End of period (sale date or current date)
  * @returns Total salary cost for the period
  */
 export function calculateSalaryCostForPeriod(
@@ -258,35 +318,13 @@ export function calculateSalaryCostForPeriod(
   startDate: Date,
   endDate: Date
 ): number {
-  if (endDate <= startDate) {
+  if (endDate <= startDate || salaryHistory.length === 0) {
     return 0;
   }
 
-  let totalCost = 0;
-  
-  // Sort salary history by start date
-  const sortedHistory = [...salaryHistory].sort((a, b) => 
-    a.startDate.getTime() - b.startDate.getTime()
-  );
-
-  for (const salaryPeriod of sortedHistory) {
-    const periodStart = new Date(Math.max(salaryPeriod.startDate.getTime(), startDate.getTime()));
-    const periodEnd = new Date(Math.min(
-      salaryPeriod.endDate?.getTime() || endDate.getTime(),
-      endDate.getTime()
-    ));
-
-    if (periodStart < periodEnd) {
-      const weeksInPeriod = calculateWeeksOwned({
-        purchaseDate: periodStart,
-        saleDate: periodEnd
-      }).weeksOwned;
-
-      totalCost += salaryPeriod.weeklyPay * weeksInPeriod;
-    }
-  }
-
-  return totalCost;
+  // Use the new Friday-based calculation
+  const result = calculateSalaryPayments(startDate, endDate, salaryHistory);
+  return result.totalCost;
 }
 
 /**
@@ -310,6 +348,106 @@ export function convertDaysToAge(totalDays: number): PlayerAge {
   const days = totalDays % HATTRICK_CONSTANTS.DAYS_PER_HATTRICK_YEAR;
   
   return { years, days };
+}
+
+/**
+ * Calculate salary payments based on Hattrick rules
+ * - One payment on purchase day (immediate)
+ * - One payment every Friday the player is on the team
+ * 
+ * @param purchaseDate - Date player was purchased
+ * @param endDate - End date (sale date or current date)
+ * @param salaryHistory - Historical salary data
+ * @returns Total payments, cost, and breakdown
+ */
+export function calculateSalaryPayments(
+  purchaseDate: Date,
+  endDate: Date,
+  salaryHistory: SalaryHistory[]
+): { totalPayments: number; totalCost: number; breakdown: SalaryBreakdown[] } {
+  if (endDate <= purchaseDate) {
+    return { totalPayments: 0, totalCost: 0, breakdown: [] };
+  }
+
+  const breakdown: SalaryBreakdown[] = [];
+  let totalPayments = 0;
+  let totalCost = 0;
+
+  // Sort salary history by start date
+  const sortedHistory = [...salaryHistory].sort((a, b) => 
+    a.startDate.getTime() - b.startDate.getTime()
+  );
+
+  for (const salaryPeriod of sortedHistory) {
+    const periodStart = new Date(Math.max(salaryPeriod.startDate.getTime(), purchaseDate.getTime()));
+    const periodEnd = new Date(Math.min(
+      salaryPeriod.endDate?.getTime() || endDate.getTime(),
+      endDate.getTime()
+    ));
+
+    if (periodStart < periodEnd) {
+      const payments = countSalaryPayments(periodStart, periodEnd, purchaseDate);
+      const cost = payments * salaryPeriod.weeklyPay;
+      
+      breakdown.push({
+        salaryPeriod,
+        periodStart,
+        periodEnd,
+        payments,
+        cost
+      });
+
+      totalPayments += payments;
+      totalCost += cost;
+    }
+  }
+
+  return { totalPayments, totalCost, breakdown };
+}
+
+/**
+ * Count salary payments for a specific period based on Hattrick rules
+ * 
+ * @param startDate - Period start date
+ * @param endDate - Period end date
+ * @param purchaseDate - Original purchase date (for immediate payment)
+ * @returns Number of salary payments
+ */
+export function countSalaryPayments(
+  startDate: Date,
+  endDate: Date,
+  purchaseDate: Date
+): number {
+  if (endDate <= startDate) {
+    return 0;
+  }
+
+  let payments = 0;
+
+  // Count immediate payment on purchase day (if within this period)
+  if (startDate.getTime() <= purchaseDate.getTime() && purchaseDate.getTime() < endDate.getTime()) {
+    payments += 1;
+  }
+
+  // Count all Fridays in the period
+  let currentDate = new Date(startDate);
+  
+  // Find first Friday on or after startDate
+  const daysUntilFriday = (5 - currentDate.getDay() + 7) % 7;
+  if (daysUntilFriday > 0) {
+    currentDate.setDate(currentDate.getDate() + daysUntilFriday);
+  }
+
+  // Count all Fridays until endDate
+  while (currentDate < endDate) {
+    // Only count Friday if it's not the purchase day (to avoid double counting)
+    if (currentDate.getTime() !== purchaseDate.getTime()) {
+      payments += 1;
+    }
+    currentDate.setDate(currentDate.getDate() + 7); // Next Friday
+  }
+
+  return payments;
 }
 
 /**

@@ -18,7 +18,7 @@ const ProfitCalculationSchema = z.object({
   playerId: z.string().cuid(),
   hypotheticalSalePrice: z.number().positive().int(),
   hypotheticalSaleDate: z.string().datetime().optional(),
-  customPercentageKept: z.number().min(0).max(93).optional()
+  customPercentageKept: z.number().min(0).max(95).optional()
 })
 
 export async function POST(request: NextRequest) {
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
     let percentageKept = data.customPercentageKept
     if (percentageKept === undefined) {
       const percentageResult = calculatePercentageKept({
-        weeksOwned: weeksOwnedResult.weeksOwned
+        daysOwned: weeksOwnedResult.daysOwned
       })
       percentageKept = percentageResult.percentageKept
     }
@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
 
     // Get percentage progression info
     const percentageProgressResult = calculatePercentageKept({
-      weeksOwned: weeksOwnedResult.weeksOwned
+      daysOwned: weeksOwnedResult.daysOwned
     })
 
     const response = {
@@ -150,10 +150,10 @@ export async function POST(request: NextRequest) {
               saleDate: new Date()
             }).weeksOwned,
             percentageKept: calculatePercentageKept({
-              weeksOwned: calculateWeeksOwned({
+              daysOwned: calculateWeeksOwned({
                 purchaseDate: player.purchaseDate,
                 saleDate: new Date()
-              }).weeksOwned
+              }).daysOwned
             }).percentageKept
           }
         }

@@ -11,6 +11,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { ArrowLeft, Save } from "lucide-react"
 import Link from "next/link"
 import type { CreatePlayerInput } from "@/types/hattrick"
+import { playersApi, ApiError } from "@/lib/api"
+import { HattrickImport } from "@/components/hattrick-import"
+import type { HattrickPlayerData } from "@/lib/hattrick-parser"
 
 const positions = [
   "Goalkeeper",
@@ -77,7 +80,9 @@ export default function AddPlayerPage() {
     setPieces: 0,
     purchaseDate: new Date(),
     purchasePrice: 0,
-    fromTeam: ""
+    fromTeam: "",
+    estimatedSaleValue: undefined,
+    weeklyPay: undefined
   })
 
   const validateForm = (): boolean => {
@@ -111,6 +116,10 @@ export default function AddPlayerPage() {
       newErrors.ageDays = "Days must be between 0 and 111"
     }
 
+    if (formData.weeklyPay !== undefined && formData.weeklyPay <= 0) {
+      newErrors.weeklyPay = "Weekly salary must be greater than 0 if provided"
+    }
+
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
@@ -125,18 +134,41 @@ export default function AddPlayerPage() {
     setIsSubmitting(true)
     
     try {
-      // TODO: Replace with actual API call
-      console.log("Creating player:", formData)
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      const playerData = {
+        name: formData.name!,
+        ageYears: formData.ageYears!,
+        ageDays: formData.ageDays!,
+        position: formData.position!,
+        nationality: formData.nationality!,
+        speciality: formData.speciality === "None" ? undefined : formData.speciality,
+        form: formData.form!,
+        stamina: formData.stamina!,
+        keeper: formData.keeper,
+        defending: formData.defending,
+        playmaking: formData.playmaking,
+        winger: formData.winger,
+        passing: formData.passing,
+        scoring: formData.scoring,
+        setPieces: formData.setPieces,
+        purchaseDate: formData.purchaseDate!.toISOString(),
+        purchasePrice: formData.purchasePrice!,
+        fromTeam: formData.fromTeam || undefined,
+        estimatedSaleValue: formData.estimatedSaleValue,
+        weeklyPay: formData.weeklyPay
+      }
+
+      const result = await playersApi.create(playerData)
       
       // Redirect to player detail page
-      router.push("/players")
+      router.push(`/players/${result.id}`)
       
     } catch (error) {
       console.error("Error creating player:", error)
-      setErrors({ submit: "Failed to create player. Please try again." })
+      if (error instanceof ApiError) {
+        setErrors({ submit: error.message })
+      } else {
+        setErrors({ submit: "Failed to create player. Please try again." })
+      }
     } finally {
       setIsSubmitting(false)
     }
@@ -148,6 +180,34 @@ export default function AddPlayerPage() {
     if (errors[key]) {
       setErrors(prev => ({ ...prev, [key]: "" }))
     }
+  }
+
+  const handleHattrickImport = (importedData: HattrickPlayerData) => {
+    // Update form data with imported values
+    const updatedFormData = { ...formData }
+    
+    if (importedData.name) updatedFormData.name = importedData.name
+    if (importedData.ageYears !== undefined) updatedFormData.ageYears = importedData.ageYears
+    if (importedData.ageDays !== undefined) updatedFormData.ageDays = importedData.ageDays
+    if (importedData.nationality) updatedFormData.nationality = importedData.nationality
+    if (importedData.position) updatedFormData.position = importedData.position
+    if (importedData.speciality) updatedFormData.speciality = importedData.speciality
+    if (importedData.form !== undefined) updatedFormData.form = importedData.form
+    if (importedData.stamina !== undefined) updatedFormData.stamina = importedData.stamina
+    if (importedData.keeper !== undefined) updatedFormData.keeper = importedData.keeper
+    if (importedData.defending !== undefined) updatedFormData.defending = importedData.defending
+    if (importedData.playmaking !== undefined) updatedFormData.playmaking = importedData.playmaking
+    if (importedData.winger !== undefined) updatedFormData.winger = importedData.winger
+    if (importedData.passing !== undefined) updatedFormData.passing = importedData.passing
+    if (importedData.scoring !== undefined) updatedFormData.scoring = importedData.scoring
+    if (importedData.setPieces !== undefined) updatedFormData.setPieces = importedData.setPieces
+    if (importedData.weeklyPay !== undefined) updatedFormData.weeklyPay = importedData.weeklyPay
+    if (importedData.fromTeam) updatedFormData.fromTeam = importedData.fromTeam
+
+    setFormData(updatedFormData)
+    
+    // Clear any validation errors for imported fields
+    setErrors({})
   }
 
   return (
@@ -166,6 +226,9 @@ export default function AddPlayerPage() {
           </p>
         </div>
       </div>
+
+      {/* Hattrick Import */}
+      <HattrickImport onImport={handleHattrickImport} />
 
       <form onSubmit={handleSubmit} className="space-y-8">
         {/* Basic Information */}
@@ -383,7 +446,6 @@ export default function AddPlayerPage() {
                   id="purchasePrice"
                   type="number"
                   min="0"
-                  step="1000"
                   value={formData.purchasePrice || ""}
                   onChange={(e) => updateFormData("purchasePrice", parseInt(e.target.value) || 0)}
                   placeholder="Enter purchase price"
@@ -406,6 +468,42 @@ export default function AddPlayerPage() {
                 {errors.purchaseDate && (
                   <p className="text-sm text-red-500">{errors.purchaseDate}</p>
                 )}
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="estimatedSaleValue">Estimated Sale Value</Label>
+                <Input
+                  id="estimatedSaleValue"
+                  type="number"
+                  min="0"
+                  value={formData.estimatedSaleValue || ""}
+                  onChange={(e) => updateFormData("estimatedSaleValue", parseInt(e.target.value) || undefined)}
+                  placeholder="Enter estimated sale value"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Optional: Used for profit calculations. If not set, estimated as purchase price + 10%.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="weeklyPay">Weekly Salary</Label>
+                <Input
+                  id="weeklyPay"
+                  type="number"
+                  min="0"
+                  value={formData.weeklyPay || ""}
+                  onChange={(e) => updateFormData("weeklyPay", parseInt(e.target.value) || undefined)}
+                  placeholder="Enter weekly salary"
+                  className={errors.weeklyPay ? "border-red-500" : ""}
+                />
+                {errors.weeklyPay && (
+                  <p className="text-sm text-red-500">{errors.weeklyPay}</p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Optional: Weekly salary cost for profit calculations.
+                </p>
               </div>
             </div>
 

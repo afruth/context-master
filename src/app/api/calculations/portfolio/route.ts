@@ -286,6 +286,7 @@ export async function GET(request: NextRequest) {
       message: 'Portfolio summary calculated successfully'
     }
 
+    console.log('Portfolio API Response:', JSON.stringify(response, null, 2))
     return NextResponse.json(response)
 
   } catch (error) {

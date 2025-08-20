@@ -56,6 +56,7 @@ model Player {
   purchaseDate     DateTime
   purchasePrice    Int                 // Using Int to avoid decimal precision issues
   fromTeam         String?
+  estimatedSaleValue Int?             // Estimated sale value for profit calculations
   currentStatus    PlayerStatus        @default(OWNED)
   userId           String
   user             User                @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -67,6 +68,11 @@ model Player {
   @@index([userId])
   @@index([currentStatus])
   @@index([purchaseDate])
+  @@index([position])
+  @@index([ageYears])
+  @@index([purchasePrice])
+  @@index([name])
+  @@index([nationality])
 }
 
 model SaleTransaction {
@@ -84,6 +90,8 @@ model SaleTransaction {
 
   @@index([playerId])
   @@index([saleDate])
+  @@index([profitLoss])
+  @@index([salePrice])
 }
 
 model SalaryHistory {

@@ -21,85 +21,32 @@ import {
   Trophy,
   Clock
 } from "lucide-react"
-import type { PlayerWithCalculations, PlayerStatus, SaleTransaction } from "@/types/hattrick"
+import type { PlayerWithCalculations } from "@/types/hattrick"
+import { playersApi } from "@/lib/api"
+import { CardSkeleton } from "@/components/ui/skeleton"
+import { RecordSaleModal } from "@/components/record-sale-modal"
+import { 
+  calculatePercentageKept, 
+  calculateWeeksOwned,
+  calculateCurrentProjectedProfit,
+  countSalaryPayments,
+  calculateSalaryCostForPeriod
+} from "@/lib/calculations"
 
-// Mock data - replace with actual API calls
-const mockPlayer: PlayerWithCalculations = {
-  id: "1",
-  name: "João Silva",
-  age: { years: 18, days: 45 },
-  position: "Winger",
-  nationality: "Brazil",
-  speciality: "Quick",
-  form: 8,
-  stamina: 7,
-  skills: {
-    winger: 9,
-    passing: 6,
-    defending: 4,
-    scoring: 5,
-    playmaking: 3,
-    setPieces: 2
-  },
-  purchaseDetails: {
-    date: new Date("2024-07-15"),
-    price: 120000,
-    fromTeam: "FC Barcelona B",
-    hattrickWeek: 8,
-    hattrickSeason: 85
-  },
-  currentStatus: "OWNED" as PlayerStatus,
-  userId: "user1",
-  createdAt: new Date("2024-07-15"),
-  updatedAt: new Date("2024-08-01"),
-  estimatedProfit: 45000,
-  currentValue: 165000,
-  weeksOwned: 5,
-  saleTransactions: [],
-  salaryHistory: [
-    {
-      id: "sal1",
-      playerId: "1",
-      weeklyPay: 2400,
-      startDate: new Date("2024-07-15"),
-      createdAt: new Date("2024-07-15"),
-      updatedAt: new Date("2024-07-15")
-    },
-    {
-      id: "sal2", 
-      playerId: "1",
-      weeklyPay: 2600,
-      startDate: new Date("2024-08-01"),
-      createdAt: new Date("2024-08-01"),
-      updatedAt: new Date("2024-08-01")
-    }
-  ]
-}
-
-const mockTransactionHistory = [
-  {
-    id: "txn1",
-    type: "purchase" as const,
-    date: "2024-07-15",
-    amount: 120000,
-    description: "Player purchased from FC Barcelona B",
-    team: "FC Barcelona B"
-  }
-]
 
 export default function PlayerDetailPage() {
   const params = useParams()
   const router = useRouter()
   const [player, setPlayer] = useState<PlayerWithCalculations | null>(null)
   const [loading, setLoading] = useState(true)
+  const [saleModalOpen, setSaleModalOpen] = useState(false)
 
   useEffect(() => {
-    // TODO: Replace with actual API call
     const loadPlayer = async () => {
       try {
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 500))
-        setPlayer(mockPlayer)
+        setLoading(true)
+        const result = await playersApi.getById(params.id as string)
+        setPlayer(result)
       } catch (error) {
         console.error("Error loading player:", error)
       } finally {
@@ -107,7 +54,9 @@ export default function PlayerDetailPage() {
       }
     }
 
-    loadPlayer()
+    if (params.id) {
+      loadPlayer()
+    }
   }, [params.id])
 
   const handleDelete = async () => {
@@ -116,20 +65,38 @@ export default function PlayerDetailPage() {
     }
 
     try {
-      // TODO: Replace with actual API call
-      console.log("Deleting player:", params.id)
+      await playersApi.delete(params.id as string)
       router.push("/players")
     } catch (error) {
       console.error("Error deleting player:", error)
+      alert('Failed to delete player. Please try again.')
+    }
+  }
+
+  // Handle sale recorded - refresh player data
+  const handleSaleRecorded = async () => {
+    try {
+      const result = await playersApi.getById(params.id as string)
+      setPlayer(result)
+    } catch (error) {
+      console.error("Error refreshing player:", error)
     }
   }
 
   if (loading) {
     return (
       <div className="space-y-8">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-1/4 mb-4"></div>
-          <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+        <div className="flex items-center justify-between">
+          <CardSkeleton />
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <CardSkeleton key={i} />
+          ))}
+        </div>
+        <div className="grid gap-8 md:grid-cols-2">
+          <CardSkeleton />
+          <CardSkeleton />
         </div>
       </div>
     )
@@ -146,16 +113,55 @@ export default function PlayerDetailPage() {
     )
   }
 
-  const totalSalaryCost = player.salaryHistory.reduce((total, salary) => {
-    const weeks = player.weeksOwned || 0
-    return total + (salary.weeklyPay * weeks)
-  }, 0)
+  // Calculate current percentage kept using days owned (more accurate than weeks)
+  const currentPercentageKept = calculatePercentageKept({
+    daysOwned: player.daysOwned || 0
+  })
 
-  const profitProjection = {
-    currentPercentageKept: Math.min(93, (player.weeksOwned || 0) * 5), // 5% per week
-    projectedSaleValue: player.currentValue || 0,
-    projectedNetSaleValue: ((player.currentValue || 0) * Math.min(93, (player.weeksOwned || 0) * 5)) / 100,
-    projectedProfit: (((player.currentValue || 0) * Math.min(93, (player.weeksOwned || 0) * 5)) / 100) - player.purchaseDetails.price - totalSalaryCost
+  // Use estimatedSaleValue if available, otherwise fall back to calculated current value
+  const currentValue = player.estimatedSaleValue || player.currentValue || Math.round(player.purchaseDetails.price * 1.1)
+
+  // Calculate projected profit using proper calculation functions
+  let profitProjection = null
+  if (player.currentStatus === 'OWNED' && player.salaryHistory.length > 0) {
+    try {
+      // Convert salary history dates from strings to Date objects
+      const salaryHistoryWithDates = player.salaryHistory.map(sh => ({
+        ...sh,
+        startDate: new Date(sh.startDate),
+        endDate: sh.endDate ? new Date(sh.endDate) : undefined,
+        createdAt: new Date(sh.createdAt),
+        updatedAt: new Date(sh.updatedAt)
+      }))
+
+      profitProjection = calculateCurrentProjectedProfit({
+        player,
+        projectedSaleValue: currentValue,
+        salaryHistory: salaryHistoryWithDates
+      })
+    } catch (error) {
+      console.warn('Could not calculate projected profit:', error)
+      // Fallback calculation
+      const totalSalaryCost = player.salaryHistory.reduce((total, salary) => {
+        const weeks = player.weeksOwned || 0
+        return total + (salary.weeklyPay * weeks)
+      }, 0)
+      
+      profitProjection = {
+        currentPercentageKept: currentPercentageKept.percentageKept,
+        projectedSaleValue: currentValue,
+        projectedNetSaleValue: Math.round(currentValue * (currentPercentageKept.percentageKept / 100)),
+        projectedProfit: Math.round(currentValue * (currentPercentageKept.percentageKept / 100)) - player.purchaseDetails.price - totalSalaryCost
+      }
+    }
+  } else {
+    // Simple fallback when no salary history
+    profitProjection = {
+      currentPercentageKept: currentPercentageKept.percentageKept,
+      projectedSaleValue: currentValue,
+      projectedNetSaleValue: Math.round(currentValue * (currentPercentageKept.percentageKept / 100)),
+      projectedProfit: Math.round(currentValue * (currentPercentageKept.percentageKept / 100)) - player.purchaseDetails.price
+    }
   }
 
   return (
@@ -186,11 +192,9 @@ export default function PlayerDetailPage() {
           </Button>
 
           {player.currentStatus === 'OWNED' && (
-            <Button asChild>
-              <Link href={`/players/${player.id}/sell`}>
-                <ShoppingCart className="mr-2 h-4 w-4" />
-                Record Sale
-              </Link>
+            <Button onClick={() => setSaleModalOpen(true)}>
+              <ShoppingCart className="mr-2 h-4 w-4" />
+              Record Sale
             </Button>
           )}
 
@@ -238,10 +242,10 @@ export default function PlayerDetailPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              ${player.currentValue?.toLocaleString() || 'N/A'}
+              ${currentValue.toLocaleString()}
             </div>
             <p className="text-xs text-muted-foreground">
-              Estimated market value
+              {player.estimatedSaleValue ? 'Estimated sale value' : 'Estimated market value'}
             </p>
           </CardContent>
         </Card>
@@ -256,7 +260,7 @@ export default function PlayerDetailPage() {
               {player.weeksOwned || 0}
             </div>
             <p className="text-xs text-muted-foreground">
-              {profitProjection.currentPercentageKept}% kept on sale
+              {currentPercentageKept.percentageKept}% kept on sale
             </p>
           </CardContent>
         </Card>
@@ -264,7 +268,7 @@ export default function PlayerDetailPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Projected Profit</CardTitle>
-            {(player.estimatedProfit || 0) >= 0 ? (
+            {(profitProjection?.projectedProfit || 0) >= 0 ? (
               <TrendingUp className="h-4 w-4 text-green-600" />
             ) : (
               <TrendingDown className="h-4 w-4 text-red-600" />
@@ -272,9 +276,9 @@ export default function PlayerDetailPage() {
           </CardHeader>
           <CardContent>
             <div className={`text-2xl font-bold ${
-              (player.estimatedProfit || 0) >= 0 ? 'text-green-600' : 'text-red-600'
+              (profitProjection?.projectedProfit || 0) >= 0 ? 'text-green-600' : 'text-red-600'
             }`}>
-              {(player.estimatedProfit || 0) >= 0 ? '+' : ''}${(player.estimatedProfit || 0).toLocaleString()}
+              {(profitProjection?.projectedProfit || 0) >= 0 ? '+' : ''}${(profitProjection?.projectedProfit || 0).toLocaleString()}
             </div>
             <p className="text-xs text-muted-foreground">
               If sold at current value
@@ -366,53 +370,122 @@ export default function PlayerDetailPage() {
           </CardContent>
         </Card>
 
-        {/* Profit Projection */}
-        {player.currentStatus === 'OWNED' && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Target className="h-4 w-4" />
-                Profit Projection
-              </CardTitle>
-              <CardDescription>
-                Based on current market value and ownership duration
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Current Value</span>
-                  <span className="font-medium">${profitProjection.projectedSaleValue.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Percentage Kept</span>
-                  <span className="font-medium">{profitProjection.currentPercentageKept}%</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Net Sale Value</span>
-                  <span className="font-medium">${profitProjection.projectedNetSaleValue.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Total Salary Cost</span>
-                  <span className="font-medium">-${totalSalaryCost.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Purchase Price</span>
-                  <span className="font-medium">-${player.purchaseDetails.price.toLocaleString()}</span>
-                </div>
-                <hr />
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground font-medium">Projected Profit</span>
-                  <span className={`font-bold ${
-                    profitProjection.projectedProfit >= 0 ? 'text-green-600' : 'text-red-600'
-                  }`}>
-                    {profitProjection.projectedProfit >= 0 ? '+' : ''}${profitProjection.projectedProfit.toLocaleString()}
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        {/* Profit Calculation/Projection */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Target className="h-4 w-4" />
+              {player.currentStatus === 'SOLD' ? 'Profit Calculation' : 'Profit Projection'}
+            </CardTitle>
+            <CardDescription>
+              {player.currentStatus === 'SOLD' 
+                ? 'Final profit/loss calculation from the sale'
+                : 'Based on current market value and ownership duration'
+              }
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-3">
+              {player.currentStatus === 'SOLD' && player.saleTransactions.length > 0 ? (
+                // Show actual sale data for sold players
+                <>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Sale Price</span>
+                    <span className="font-medium">${player.saleTransactions[0].salePrice.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Percentage Kept</span>
+                    <span className="font-medium">{player.saleTransactions[0].percentageKept}%</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Net Sale Value</span>
+                    <span className="font-medium">${Math.round(player.saleTransactions[0].salePrice * (player.saleTransactions[0].percentageKept / 100)).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Total Salary Cost</span>
+                    <span className="font-medium">-${(() => {
+                      // Calculate actual salary cost for sold player
+                      const salaryHistoryWithDates = player.salaryHistory.map(sh => ({
+                        ...sh,
+                        startDate: new Date(sh.startDate),
+                        endDate: sh.endDate ? new Date(sh.endDate) : undefined,
+                        createdAt: new Date(sh.createdAt),
+                        updatedAt: new Date(sh.updatedAt)
+                      }))
+                      const totalCost = calculateSalaryCostForPeriod(
+                        salaryHistoryWithDates,
+                        new Date(player.purchaseDetails.date),
+                        new Date(player.saleTransactions[0].saleDate)
+                      )
+                      return totalCost.toLocaleString()
+                    })()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Purchase Price</span>
+                    <span className="font-medium">-${player.purchaseDetails.price.toLocaleString()}</span>
+                  </div>
+                  <hr />
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground font-medium">Final Profit/Loss</span>
+                    <span className={`font-bold ${
+                      player.saleTransactions[0].profitLoss >= 0 ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {player.saleTransactions[0].profitLoss >= 0 ? '+' : ''}${player.saleTransactions[0].profitLoss.toLocaleString()}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                // Show projection for owned players
+                <>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Current Value</span>
+                    <span className="font-medium">${profitProjection?.projectedSaleValue.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Percentage Kept</span>
+                    <span className="font-medium">{profitProjection?.currentPercentageKept}%</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Net Sale Value</span>
+                    <span className="font-medium">${profitProjection?.projectedNetSaleValue.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Total Salary Cost</span>
+                    <span className="font-medium">-${(() => {
+                      // Calculate current salary cost for owned player
+                      const salaryHistoryWithDates = player.salaryHistory.map(sh => ({
+                        ...sh,
+                        startDate: new Date(sh.startDate),
+                        endDate: sh.endDate ? new Date(sh.endDate) : undefined,
+                        createdAt: new Date(sh.createdAt),
+                        updatedAt: new Date(sh.updatedAt)
+                      }))
+                      const totalCost = calculateSalaryCostForPeriod(
+                        salaryHistoryWithDates,
+                        new Date(player.purchaseDetails.date),
+                        new Date()
+                      )
+                      return totalCost.toLocaleString()
+                    })()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Purchase Price</span>
+                    <span className="font-medium">-${player.purchaseDetails.price.toLocaleString()}</span>
+                  </div>
+                  <hr />
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground font-medium">Projected Profit</span>
+                    <span className={`font-bold ${
+                      (profitProjection?.projectedProfit || 0) >= 0 ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {(profitProjection?.projectedProfit || 0) >= 0 ? '+' : ''}${(profitProjection?.projectedProfit || 0).toLocaleString()}
+                    </span>
+                  </div>
+                </>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Transaction History */}
         <Card>
@@ -424,31 +497,31 @@ export default function PlayerDetailPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {mockTransactionHistory.map((transaction) => (
-                <div key={transaction.id} className="flex justify-between items-center p-3 bg-muted/50 rounded-lg">
-                  <div>
-                    <div className="font-medium">{transaction.description}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {new Date(transaction.date).toLocaleDateString()}
-                    </div>
+              {/* Purchase Transaction */}
+              <div className="flex justify-between items-center p-3 bg-muted/50 rounded-lg">
+                <div>
+                  <div className="font-medium">
+                    Player purchased{player.purchaseDetails.fromTeam ? ` from ${player.purchaseDetails.fromTeam}` : ''}
                   </div>
-                  <div className="text-right">
-                    <div className={`font-medium ${
-                      transaction.type === 'purchase' ? 'text-red-600' : 'text-green-600'
-                    }`}>
-                      {transaction.type === 'purchase' ? '-' : '+'}${transaction.amount.toLocaleString()}
-                    </div>
-                    <Badge variant={transaction.type === 'purchase' ? 'secondary' : 'success'}>
-                      {transaction.type}
-                    </Badge>
+                  <div className="text-sm text-muted-foreground">
+                    {new Date(player.purchaseDetails.date).toLocaleDateString()}
                   </div>
                 </div>
-              ))}
+                <div className="text-right">
+                  <div className="font-medium text-red-600">
+                    -${player.purchaseDetails.price.toLocaleString()}
+                  </div>
+                  <Badge variant="secondary">
+                    purchase
+                  </Badge>
+                </div>
+              </div>
 
+              {/* Sale Transactions */}
               {player.saleTransactions.map((sale) => (
                 <div key={sale.id} className="flex justify-between items-center p-3 bg-muted/50 rounded-lg">
                   <div>
-                    <div className="font-medium">Player sold to {sale.toTeam}</div>
+                    <div className="font-medium">Player sold{sale.toTeam ? ` to ${sale.toTeam}` : ''}</div>
                     <div className="text-sm text-muted-foreground">
                       {new Date(sale.saleDate).toLocaleDateString()}
                     </div>
@@ -482,19 +555,24 @@ export default function PlayerDetailPage() {
                   <TableHead>Start Date</TableHead>
                   <TableHead>End Date</TableHead>
                   <TableHead>Weekly Pay</TableHead>
-                  <TableHead>Duration</TableHead>
+                  <TableHead>Payments</TableHead>
                   <TableHead>Total Cost</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {player.salaryHistory.map((salary) => {
-                  const weeks = player.weeksOwned || 0
-                  const totalCost = salary.weeklyPay * weeks
+                  // Calculate payments for this specific salary period
+                  const periodStart = new Date(salary.startDate)
+                  const periodEnd = salary.endDate ? new Date(salary.endDate) : new Date()
+                  const purchaseDate = new Date(player.purchaseDetails.date)
+                  
+                  const payments = countSalaryPayments(periodStart, periodEnd, purchaseDate)
+                  const totalCost = payments * salary.weeklyPay
                   
                   return (
                     <TableRow key={salary.id}>
                       <TableCell>
-                        {new Date(salary.startDate).toLocaleDateString()}
+                        {periodStart.toLocaleDateString()}
                       </TableCell>
                       <TableCell>
                         {salary.endDate ? new Date(salary.endDate).toLocaleDateString() : 'Current'}
@@ -503,7 +581,7 @@ export default function PlayerDetailPage() {
                         ${salary.weeklyPay.toLocaleString()}
                       </TableCell>
                       <TableCell>
-                        {weeks} weeks
+                        {payments} payments
                       </TableCell>
                       <TableCell>
                         ${totalCost.toLocaleString()}
@@ -515,6 +593,16 @@ export default function PlayerDetailPage() {
             </Table>
           </CardContent>
         </Card>
+      )}
+
+      {/* Record Sale Modal */}
+      {player && (
+        <RecordSaleModal
+          player={player}
+          open={saleModalOpen}
+          onOpenChange={setSaleModalOpen}
+          onSaleRecorded={handleSaleRecorded}
+        />
       )}
     </div>
   )

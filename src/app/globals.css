@@ -1,26 +1,52 @@
 @import "tailwindcss";
 
 @theme {
+  /* Base Colors */
   --color-background: hsl(0 0% 100%);
   --color-foreground: hsl(222.2 84% 4.9%);
   --color-card: hsl(0 0% 100%);
   --color-card-foreground: hsl(222.2 84% 4.9%);
   --color-popover: hsl(0 0% 100%);
   --color-popover-foreground: hsl(222.2 84% 4.9%);
-  --color-primary: hsl(222.2 47.4% 11.2%);
-  --color-primary-foreground: hsl(210 40% 98%);
-  --color-secondary: hsl(210 40% 96.1%);
-  --color-secondary-foreground: hsl(222.2 47.4% 11.2%);
+  
+  /* Primary - Hattrick Green */
+  --color-primary: hsl(123 45% 33%); /* #2D7D32 */
+  --color-primary-foreground: hsl(0 0% 100%);
+  
+  /* Secondary - Professional Blue */
+  --color-secondary: hsl(207 90% 43%); /* #1565C0 */
+  --color-secondary-foreground: hsl(0 0% 100%);
+  
+  /* Semantic Financial Colors */
+  --color-profit: hsl(122 54% 44%); /* #4CAF50 */
+  --color-profit-foreground: hsl(0 0% 100%);
+  --color-loss: hsl(4 78% 56%); /* #F44336 */
+  --color-loss-foreground: hsl(0 0% 100%);
+  
+  /* UI Colors */
   --color-muted: hsl(210 40% 96.1%);
   --color-muted-foreground: hsl(215.4 16.3% 46.9%);
   --color-accent: hsl(210 40% 96.1%);
   --color-accent-foreground: hsl(222.2 47.4% 11.2%);
-  --color-destructive: hsl(0 84.2% 60.2%);
+  --color-destructive: hsl(4 78% 56%); /* #F44336 */
   --color-destructive-foreground: hsl(210 40% 98%);
   --color-border: hsl(214.3 31.8% 91.4%);
   --color-input: hsl(214.3 31.8% 91.4%);
-  --color-ring: hsl(222.2 84% 4.9%);
+  --color-ring: hsl(123 45% 33%); /* Primary green for focus rings */
   
+  /* Chart Color Palette - Vibrant and Varied */
+  --color-chart-1: hsl(123 45% 33%); /* Primary Green */
+  --color-chart-2: hsl(207 90% 43%); /* Professional Blue */
+  --color-chart-3: hsl(4 78% 56%); /* Loss Red */
+  --color-chart-4: hsl(45 93% 48%); /* Golden Yellow */
+  --color-chart-5: hsl(262 83% 58%); /* Purple */
+  --color-chart-6: hsl(32 95% 56%); /* Orange */
+  --color-chart-7: hsl(338 84% 57%); /* Pink */
+  --color-chart-8: hsl(188 86% 53%); /* Cyan */
+  --color-chart-9: hsl(84 81% 44%); /* Lime Green */
+  --color-chart-10: hsl(14 91% 60%); /* Red Orange */
+  
+  /* Radius */
   --radius-sm: 0.125rem;
   --radius-DEFAULT: 0.25rem;
   --radius-md: 0.375rem;
@@ -28,4 +54,31 @@
   --radius-xl: 0.75rem;
   --radius-2xl: 1rem;
   --radius-3xl: 1.5rem;
+}
+
+/* Custom utility classes for semantic colors */
+@layer utilities {
+  .text-profit {
+    color: hsl(var(--color-profit));
+  }
+  
+  .text-loss {
+    color: hsl(var(--color-loss));
+  }
+  
+  .bg-profit {
+    background-color: hsl(var(--color-profit));
+  }
+  
+  .bg-loss {
+    background-color: hsl(var(--color-loss));
+  }
+  
+  .border-profit {
+    border-color: hsl(var(--color-profit));
+  }
+  
+  .border-loss {
+    border-color: hsl(var(--color-loss));
+  }
 }

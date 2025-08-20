@@ -1,6 +1,8 @@
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { Navigation } from "@/components/navigation"
+import { Providers } from "@/components/providers"
+import { Toaster } from "sonner"
 
 export default async function DashboardLayout({
   children,
@@ -14,11 +16,14 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navigation />
-      <main className="container mx-auto px-4 py-8">
-        {children}
-      </main>
-    </div>
+    <Providers session={session}>
+      <div className="min-h-screen bg-background">
+        <Navigation />
+        <main className="container mx-auto px-4 py-8">
+          {children}
+        </main>
+        <Toaster richColors position="top-right" />
+      </div>
+    </Providers>
   )
 }
