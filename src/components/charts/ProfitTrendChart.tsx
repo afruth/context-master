@@ -3,6 +3,8 @@
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { ChartContainer } from './ChartContainer'
 import type { ProfitTrendData } from '@/types/hattrick'
+import { useCurrency } from '@/hooks/use-settings'
+import { formatCurrency as formatCurrencyUtil } from '@/lib/utils'
 
 export interface ProfitTrendChartProps {
   data: ProfitTrendData[]
@@ -12,6 +14,7 @@ export interface ProfitTrendChartProps {
 }
 
 export function ProfitTrendChart({ data, loading, error, className }: ProfitTrendChartProps) {
+  const { currency } = useCurrency()
   const chartData = data.map(item => ({
     ...item,
     formattedDate: new Date(item.date + '-01').toLocaleDateString('en-US', { 
@@ -21,12 +24,7 @@ export function ProfitTrendChart({ data, loading, error, className }: ProfitTren
   }))
 
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value)
+    return formatCurrencyUtil(value, currency)
   }
 
   const CustomTooltip = ({ active, payload, label }: {

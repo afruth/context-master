@@ -29,6 +29,7 @@ export async function GET(request: NextRequest) {
         email: true,
         name: true,
         username: true,
+        currency: true,
         createdAt: true,
         updatedAt: true
       }

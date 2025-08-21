@@ -23,9 +23,12 @@ import { PortfolioCompositionChart } from "@/components/charts/PortfolioComposit
 import { ProfitDistributionChart } from "@/components/charts/ProfitDistributionChart"
 import { ExportButton } from "@/components/export-button"
 import type { AnalyticsData } from "@/types/hattrick"
+import { useCurrency } from "@/hooks/use-settings"
+import { formatCurrency } from "@/lib/utils"
 
 
 export default function DashboardPage() {
+  const { currency } = useCurrency()
   const [portfolioData, setPortfolioData] = useState({
     totalPlayers: 0,
     investedAmount: 0,
@@ -219,7 +222,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              ${(portfolioData.investedAmount || 0).toLocaleString()}
+              {formatCurrency(portfolioData.investedAmount || 0, currency)}
             </div>
             <p className="text-xs text-muted-foreground">
               Total investment capital
@@ -234,7 +237,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              ${(portfolioData.currentValue || 0).toLocaleString()}
+              {formatCurrency(portfolioData.currentValue || 0, currency)}
             </div>
             <p className="text-xs text-muted-foreground">
               Portfolio market value
@@ -255,7 +258,7 @@ export default function DashboardPage() {
             <div className={`text-2xl font-bold ${
               (portfolioData.profitLoss || 0) >= 0 ? 'text-profit' : 'text-loss'
             }`}>
-              {(portfolioData.profitLoss || 0) >= 0 ? '+' : ''}${(portfolioData.profitLoss || 0).toLocaleString()}
+              {formatCurrency(portfolioData.profitLoss || 0, currency, { showSign: true })}
             </div>
             <p className="text-xs text-muted-foreground">
               {(portfolioData.profitMargin || 0).toFixed(1)}% margin
@@ -327,10 +330,10 @@ export default function DashboardPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col">
-                          <span>${(transaction.amount || 0).toLocaleString()}</span>
+                          <span>{formatCurrency(transaction.amount || 0, currency)}</span>
                           {transaction.type === 'sale' && transaction.profit && (
                             <span className="text-xs text-profit">
-                              +${(transaction.profit || 0).toLocaleString()} profit
+                              +{formatCurrency(transaction.profit || 0, currency)} profit
                             </span>
                           )}
                         </div>

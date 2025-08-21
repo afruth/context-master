@@ -15,22 +15,28 @@ import {
   Save,
   Eye,
   EyeOff,
-  AlertTriangle
+  AlertTriangle,
+  DollarSign,
+  Settings as SettingsIcon
 } from "lucide-react"
-import { ApiError } from "@/lib/api"
+import { CurrencySelector } from "@/components/currency-selector"
+import { useSettings } from "@/hooks/use-settings"
 
 interface UserProfile {
   name: string | null
   email: string
   username: string | null
+  currency?: string
 }
 
 export default function SettingsPage() {
   const { data: session, update } = useSession()
+  const { settings, currency, isLoading: settingsLoading, updateCurrency } = useSettings()
   const [profile, setProfile] = useState<UserProfile>({
     name: "",
     email: "",
-    username: ""
+    username: "",
+    currency: "USD"
   })
   const [passwords, setPasswords] = useState({
     currentPassword: "",
@@ -45,7 +51,8 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState({
     profile: false,
     password: false,
-    fetchingProfile: true
+    fetchingProfile: true,
+    currency: false
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
 
@@ -60,7 +67,8 @@ export default function SettingsPage() {
         setProfile({
           name: userData.name || "",
           email: userData.email || "",
-          username: userData.username || ""
+          username: userData.username || "",
+          currency: userData.currency || "USD"
         })
       } catch (error) {
         console.error('Error fetching profile:', error)
@@ -219,6 +227,32 @@ export default function SettingsPage() {
       ...prev,
       [field]: !prev[field]
     }))
+  }
+
+  const handleCurrencyChange = async (currencyCode: string) => {
+    setProfile(prev => ({ ...prev, currency: currencyCode }))
+  }
+
+  const handleCurrencyUpdate = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!profile.currency) return
+    
+    setLoading(prev => ({ ...prev, currency: true }))
+    
+    try {
+      const success = await updateCurrency(profile.currency)
+      if (success) {
+        toast.success('Currency preference updated successfully')
+      } else {
+        toast.error('Failed to update currency preference')
+      }
+    } catch (error) {
+      console.error('Error updating currency:', error)
+      toast.error('Failed to update currency preference')
+    } finally {
+      setLoading(prev => ({ ...prev, currency: false }))
+    }
   }
 
   if (loading.fetchingProfile) {
@@ -476,6 +510,67 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
+        {/* Account Information */}
+        {/* Application Preferences */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <SettingsIcon className="h-5 w-5" />
+              Application Preferences
+            </CardTitle>
+            <CardDescription>
+              Configure your currency and calculation preferences
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleCurrencyUpdate} className="space-y-6">
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-base font-medium">Currency</Label>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Select your preferred currency for all calculations and displays. This affects skill predictions, 
+                    profit calculations, and all financial data throughout the application.
+                  </p>
+                  <div className="space-y-3">
+                    <CurrencySelector
+                      value={settings?.currency || profile.currency || "USD"}
+                      onValueChange={handleCurrencyChange}
+                      disabled={loading.currency || settingsLoading}
+                      placeholder="Select your currency..."
+                      showConversionRate={true}
+                    />
+                    
+                    {currency && (
+                      <div className="flex items-center gap-4 p-3 bg-muted/50 rounded-lg text-sm">
+                        <div className="flex items-center gap-2">
+                          <DollarSign className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-medium">{currency.name} ({currency.code})</span>
+                        </div>
+                        {currency.rate !== 1.0 && (
+                          <div className="text-muted-foreground">
+                            1 USD = {(1 / currency.rate).toFixed(currency.rate < 0.01 ? 0 : 2)} {currency.code}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              <Button
+                type="submit"
+                disabled={loading.currency || settingsLoading}
+                className="w-full md:w-auto"
+              >
+                <Save className="mr-2 h-4 w-4" />
+                {loading.currency ? "Updating..." : "Update Preferences"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+        
+        <Separator />
+        
         {/* Account Information */}
         <Card>
           <CardHeader>

@@ -4,6 +4,8 @@ import { X } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import type { PlayerQueryParams } from "@/types/hattrick"
+import { useCurrency } from "@/hooks/use-settings"
+import { formatCurrency } from "@/lib/utils"
 
 interface FilterSummaryProps {
   filters: PlayerQueryParams
@@ -20,6 +22,7 @@ export function FilterSummary({
   totalResults,
   totalItems
 }: FilterSummaryProps) {
+  const { currency } = useCurrency()
   const activeFilters: Array<{ key: keyof PlayerQueryParams; label: string; value: string }> = []
 
   // Build list of active filters
@@ -58,8 +61,8 @@ export function FilterSummary({
   }
 
   if (filters.priceMin || filters.priceMax) {
-    const min = filters.priceMin ? `$${filters.priceMin.toLocaleString()}` : 'any'
-    const max = filters.priceMax ? `$${filters.priceMax.toLocaleString()}` : 'any'
+    const min = filters.priceMin ? formatCurrency(filters.priceMin, currency) : 'any'
+    const max = filters.priceMax ? formatCurrency(filters.priceMax, currency) : 'any'
     activeFilters.push({
       key: 'priceMin', // We'll clear both min and max when this is clicked
       label: 'Price',

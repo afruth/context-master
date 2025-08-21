@@ -25,18 +25,21 @@ import type { PlayerWithCalculations } from "@/types/hattrick"
 import { playersApi } from "@/lib/api"
 import { CardSkeleton } from "@/components/ui/skeleton"
 import { RecordSaleModal } from "@/components/record-sale-modal"
+import { SkillPrediction } from "@/components/skill-prediction"
 import { 
   calculatePercentageKept, 
-  calculateWeeksOwned,
   calculateCurrentProjectedProfit,
   countSalaryPayments,
   calculateSalaryCostForPeriod
 } from "@/lib/calculations"
+import { useCurrency } from "@/hooks/use-settings"
+import { formatCurrency, formatProfitLoss } from "@/lib/utils"
 
 
 export default function PlayerDetailPage() {
   const params = useParams()
   const router = useRouter()
+  const { currency } = useCurrency()
   const [player, setPlayer] = useState<PlayerWithCalculations | null>(null)
   const [loading, setLoading] = useState(true)
   const [saleModalOpen, setSaleModalOpen] = useState(false)
@@ -227,7 +230,7 @@ export default function PlayerDetailPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              ${player.purchaseDetails.price.toLocaleString()}
+              {formatCurrency(player.purchaseDetails.price, currency)}
             </div>
             <p className="text-xs text-muted-foreground">
               {new Date(player.purchaseDetails.date).toLocaleDateString()}
@@ -242,7 +245,7 @@ export default function PlayerDetailPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              ${currentValue.toLocaleString()}
+              {formatCurrency(currentValue, currency)}
             </div>
             <p className="text-xs text-muted-foreground">
               {player.estimatedSaleValue ? 'Estimated sale value' : 'Estimated market value'}
@@ -278,7 +281,7 @@ export default function PlayerDetailPage() {
             <div className={`text-2xl font-bold ${
               (profitProjection?.projectedProfit || 0) >= 0 ? 'text-green-600' : 'text-red-600'
             }`}>
-              {(profitProjection?.projectedProfit || 0) >= 0 ? '+' : ''}${(profitProjection?.projectedProfit || 0).toLocaleString()}
+              {formatCurrency(profitProjection?.projectedProfit || 0, currency, { showSign: true })}
             </div>
             <p className="text-xs text-muted-foreground">
               If sold at current value
@@ -370,6 +373,21 @@ export default function PlayerDetailPage() {
           </CardContent>
         </Card>
 
+        {/* Skill Prediction */}
+        <SkillPrediction
+          skills={player.skills}
+          age={player.age}
+          wage={(() => {
+            // Get current wage from most recent salary history entry
+            if (player.salaryHistory.length === 0) return undefined;
+            const currentSalary = player.salaryHistory
+              .filter(sh => !sh.endDate || new Date(sh.endDate) > new Date())
+              .sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime())[0];
+            return currentSalary?.weeklyPay;
+          })()}
+          currencyRate={currency.rate}
+        />
+
         {/* Profit Calculation/Projection */}
         <Card>
           <CardHeader>
@@ -391,7 +409,7 @@ export default function PlayerDetailPage() {
                 <>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Sale Price</span>
-                    <span className="font-medium">${player.saleTransactions[0].salePrice.toLocaleString()}</span>
+                    <span className="font-medium">{formatCurrency(player.saleTransactions[0].salePrice, currency)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Percentage Kept</span>
@@ -399,11 +417,11 @@ export default function PlayerDetailPage() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Net Sale Value</span>
-                    <span className="font-medium">${Math.round(player.saleTransactions[0].salePrice * (player.saleTransactions[0].percentageKept / 100)).toLocaleString()}</span>
+                    <span className="font-medium">{formatCurrency(Math.round(player.saleTransactions[0].salePrice * (player.saleTransactions[0].percentageKept / 100)), currency)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Total Salary Cost</span>
-                    <span className="font-medium">-${(() => {
+                    <span className="font-medium">-{(() => {
                       // Calculate actual salary cost for sold player
                       const salaryHistoryWithDates = player.salaryHistory.map(sh => ({
                         ...sh,
@@ -417,12 +435,12 @@ export default function PlayerDetailPage() {
                         new Date(player.purchaseDetails.date),
                         new Date(player.saleTransactions[0].saleDate)
                       )
-                      return totalCost.toLocaleString()
+                      return formatCurrency(totalCost, currency)
                     })()}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Purchase Price</span>
-                    <span className="font-medium">-${player.purchaseDetails.price.toLocaleString()}</span>
+                    <span className="font-medium">-{formatCurrency(player.purchaseDetails.price, currency)}</span>
                   </div>
                   <hr />
                   <div className="flex justify-between">
@@ -430,7 +448,7 @@ export default function PlayerDetailPage() {
                     <span className={`font-bold ${
                       player.saleTransactions[0].profitLoss >= 0 ? 'text-green-600' : 'text-red-600'
                     }`}>
-                      {player.saleTransactions[0].profitLoss >= 0 ? '+' : ''}${player.saleTransactions[0].profitLoss.toLocaleString()}
+                      {formatCurrency(player.saleTransactions[0].profitLoss, currency, { showSign: true })}
                     </span>
                   </div>
                 </>
@@ -439,7 +457,7 @@ export default function PlayerDetailPage() {
                 <>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Current Value</span>
-                    <span className="font-medium">${profitProjection?.projectedSaleValue.toLocaleString()}</span>
+                    <span className="font-medium">{formatCurrency(profitProjection?.projectedSaleValue || 0, currency)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Percentage Kept</span>
@@ -447,11 +465,11 @@ export default function PlayerDetailPage() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Net Sale Value</span>
-                    <span className="font-medium">${profitProjection?.projectedNetSaleValue.toLocaleString()}</span>
+                    <span className="font-medium">{formatCurrency(profitProjection?.projectedNetSaleValue || 0, currency)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Total Salary Cost</span>
-                    <span className="font-medium">-${(() => {
+                    <span className="font-medium">-{(() => {
                       // Calculate current salary cost for owned player
                       const salaryHistoryWithDates = player.salaryHistory.map(sh => ({
                         ...sh,
@@ -465,12 +483,12 @@ export default function PlayerDetailPage() {
                         new Date(player.purchaseDetails.date),
                         new Date()
                       )
-                      return totalCost.toLocaleString()
+                      return formatCurrency(totalCost, currency)
                     })()}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Purchase Price</span>
-                    <span className="font-medium">-${player.purchaseDetails.price.toLocaleString()}</span>
+                    <span className="font-medium">-{formatCurrency(player.purchaseDetails.price, currency)}</span>
                   </div>
                   <hr />
                   <div className="flex justify-between">
@@ -478,7 +496,7 @@ export default function PlayerDetailPage() {
                     <span className={`font-bold ${
                       (profitProjection?.projectedProfit || 0) >= 0 ? 'text-green-600' : 'text-red-600'
                     }`}>
-                      {(profitProjection?.projectedProfit || 0) >= 0 ? '+' : ''}${(profitProjection?.projectedProfit || 0).toLocaleString()}
+                      {formatCurrency(profitProjection?.projectedProfit || 0, currency, { showSign: true })}
                     </span>
                   </div>
                 </>
@@ -509,7 +527,7 @@ export default function PlayerDetailPage() {
                 </div>
                 <div className="text-right">
                   <div className="font-medium text-red-600">
-                    -${player.purchaseDetails.price.toLocaleString()}
+                    -{formatCurrency(player.purchaseDetails.price, currency)}
                   </div>
                   <Badge variant="secondary">
                     purchase
@@ -528,7 +546,7 @@ export default function PlayerDetailPage() {
                   </div>
                   <div className="text-right">
                     <div className="font-medium text-green-600">
-                      +${sale.salePrice.toLocaleString()}
+                      +{formatCurrency(sale.salePrice, currency)}
                     </div>
                     <Badge variant="success">sale</Badge>
                   </div>
@@ -578,13 +596,13 @@ export default function PlayerDetailPage() {
                         {salary.endDate ? new Date(salary.endDate).toLocaleDateString() : 'Current'}
                       </TableCell>
                       <TableCell>
-                        ${salary.weeklyPay.toLocaleString()}
+                        {formatCurrency(salary.weeklyPay, currency)}
                       </TableCell>
                       <TableCell>
                         {payments} payments
                       </TableCell>
                       <TableCell>
-                        ${totalCost.toLocaleString()}
+                        {formatCurrency(totalCost, currency)}
                       </TableCell>
                     </TableRow>
                   )

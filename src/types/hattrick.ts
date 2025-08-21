@@ -438,3 +438,62 @@ export interface AnalyticsSummary {
   averageHoldingPeriod: number;
   successRate: number;
 }
+
+// Skill Prediction interfaces
+export interface SkillPredictionInput {
+  skills: PlayerSkills;
+  wage: number;
+  age: PlayerAge;
+  tsi?: number;
+  form?: number;
+  stamina?: number;
+  currencyRate?: number; // Rate to convert to USD (default 1.0 for USD)
+}
+
+export interface SkillPredictionLevel {
+  low: number;
+  avg: number;
+  high: number;
+}
+
+export interface WagePredictionLevel {
+  low: string | number;
+  avg: string | number;
+  high: string | number;
+}
+
+export interface SkillPredictionDebug {
+  originalWage: number;
+  currencyRate: number;
+  wageInUSD: number;
+  adjustedWage: number;
+  mainSkillIndex: number;
+  wageBreakdown: Record<string, number>;
+  conversionExplanation?: string;
+}
+
+export interface SkillPredictionResult {
+  predictedMainSkill: string;
+  predictedSkillLevel: SkillPredictionLevel;
+  confidence: 'Low' | 'Medium' | 'High';
+  wagePrediction: WagePredictionLevel;
+  tsiPrediction?: SkillPredictionLevel;
+  isDetectable: boolean;
+  debugInfo?: SkillPredictionDebug;
+}
+
+export interface SkillCoefficients {
+  a: number; // Base coefficient
+  b: number; // Power coefficient  
+  c: number; // Secondary skill multiplier
+  d: number; // High wage multiplier
+}
+
+export interface NeuralNetworkWeights {
+  meanp: number[];
+  stdp: number[];
+  meant: number;
+  stdt: number;
+  IW: number[][];
+  LW: number[];
+}

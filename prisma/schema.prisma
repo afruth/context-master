@@ -18,6 +18,7 @@ model User {
   name          String?
   image         String?
   emailVerified DateTime?
+  currency      String    @default("USD") // User's preferred currency for calculations
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   

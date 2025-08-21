@@ -3,6 +3,8 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { ChartContainer } from './ChartContainer'
 import type { PositionStats } from '@/types/hattrick'
+import { useCurrency } from '@/hooks/use-settings'
+import { formatCurrency as formatCurrencyUtil } from '@/lib/utils'
 
 export interface PositionPerformanceChartProps {
   data: PositionStats[]
@@ -12,6 +14,7 @@ export interface PositionPerformanceChartProps {
 }
 
 export function PositionPerformanceChart({ data, loading, error, className }: PositionPerformanceChartProps) {
+  const { currency } = useCurrency()
   const chartData = data.map(item => ({
     position: item.position,
     totalProfit: item.totalProfit,
@@ -22,12 +25,7 @@ export function PositionPerformanceChart({ data, loading, error, className }: Po
   }))
 
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value)
+    return formatCurrencyUtil(value, currency)
   }
 
   const CustomTooltip = ({ active, payload, label }: any) => {

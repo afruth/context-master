@@ -18,6 +18,8 @@ import {
 import { transactionsApi, playersApi, ApiError } from "@/lib/api"
 import { TableSkeleton } from "@/components/ui/skeleton"
 import { ExportButton } from "@/components/export-button"
+import { useCurrency } from "@/hooks/use-settings"
+import { formatCurrency } from "@/lib/utils"
 
 type SortField = 'date' | 'profitLoss' | 'amount' | 'playerName'
 type SortDirection = 'asc' | 'desc'
@@ -37,6 +39,7 @@ interface Transaction {
 }
 
 export default function TransactionsPage() {
+  const { currency } = useCurrency()
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -214,7 +217,7 @@ export default function TransactionsPage() {
             <div className={`text-2xl font-bold ${
               totalProfit >= 0 ? 'text-profit' : 'text-loss'
             }`}>
-              {totalProfit >= 0 ? '+' : ''}${totalProfit.toLocaleString()}
+              {formatCurrency(totalProfit, currency, { showSign: true })}
             </div>
             <p className="text-xs text-muted-foreground">
               Net profit from all sales
@@ -244,7 +247,7 @@ export default function TransactionsPage() {
             <div className={`text-2xl font-bold ${
               averageProfit >= 0 ? 'text-profit' : 'text-loss'
             }`}>
-              {averageProfit >= 0 ? '+' : ''}${averageProfit.toLocaleString()}
+              {formatCurrency(averageProfit, currency, { showSign: true })}
             </div>
             <p className="text-xs text-muted-foreground">
               Per transaction
@@ -365,13 +368,13 @@ export default function TransactionsPage() {
                     {new Date(transaction.date).toLocaleDateString()}
                   </TableCell>
                   <TableCell>
-                    ${(transaction.amount || 0).toLocaleString()}
+                    {formatCurrency(transaction.amount || 0, currency)}
                   </TableCell>
                   <TableCell>
                     {transaction.profit !== null && transaction.profit !== undefined ? (
                       <div className={`flex flex-col ${transaction.profit >= 0 ? 'text-profit' : 'text-loss'}`}>
                         <span className="font-medium">
-                          {transaction.profit >= 0 ? '+' : ''}${transaction.profit.toLocaleString()}
+                          {formatCurrency(transaction.profit, currency, { showSign: true })}
                         </span>
                       </div>
                     ) : (

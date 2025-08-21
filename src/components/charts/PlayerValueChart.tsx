@@ -23,7 +23,7 @@ export function PlayerValueChart({ data, loading, error, className }: PlayerValu
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD',
+      currency: 'USD', // Note: This should use user's selected currency
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(value)

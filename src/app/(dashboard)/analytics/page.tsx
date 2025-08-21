@@ -21,8 +21,11 @@ import { AgeGroupChart } from "@/components/charts/AgeGroupChart"
 import { PlayerValueChart } from "@/components/charts/PlayerValueChart"
 import { ProfitLossComparisonChart } from "@/components/charts/ProfitLossComparisonChart"
 import type { AnalyticsData } from "@/types/hattrick"
+import { useCurrency } from "@/hooks/use-settings"
+import { formatCurrency as formatCurrencyUtil } from "@/lib/utils"
 
 export default function AnalyticsPage() {
+  const { currency } = useCurrency()
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -60,12 +63,7 @@ export default function AnalyticsPage() {
   }
 
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value)
+    return formatCurrencyUtil(value, currency)
   }
 
   return (

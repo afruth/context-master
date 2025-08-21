@@ -26,8 +26,11 @@ import { PlayerFilters } from "@/components/filters/PlayerFilters"
 import { SortControls } from "@/components/filters/SortControls"
 import { FilterSummary } from "@/components/filters/FilterSummary"
 import { usePlayerFilters } from "@/hooks/usePlayerFilters"
+import { useCurrency } from "@/hooks/use-settings"
+import { formatCurrency } from "@/lib/utils"
 
 export default function PlayersPage() {
+  const { currency } = useCurrency()
   const [response, setResponse] = useState<PaginatedResponse<PlayerWithCalculations> | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [selectedPlayerForSale, setSelectedPlayerForSale] = useState<PlayerWithCalculations | null>(null)
@@ -219,22 +222,22 @@ export default function PlayersPage() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    ${player.purchaseDetails.price.toLocaleString()}
+                    {formatCurrency(player.purchaseDetails.price, currency)}
                   </TableCell>
                   <TableCell>
                     {player.currentStatus === 'OWNED' && player.estimatedProfit !== undefined ? (
                       <div className={`flex flex-col ${player.estimatedProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                         <span className="font-medium">
-                          {player.estimatedProfit >= 0 ? '+' : ''}${player.estimatedProfit.toLocaleString()}
+                          {formatCurrency(player.estimatedProfit, currency, { showSign: true })}
                         </span>
                         <span className="text-xs">
-                          Current: ${player.currentValue?.toLocaleString()}
+                          Current: {formatCurrency(player.currentValue || 0, currency)}
                         </span>
                       </div>
                     ) : player.currentStatus === 'SOLD' && player.totalProfit !== undefined ? (
                       <div className={`flex flex-col ${player.totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                         <span className="font-medium">
-                          {player.totalProfit >= 0 ? '+' : ''}${player.totalProfit.toLocaleString()}
+                          {formatCurrency(player.totalProfit, currency, { showSign: true })}
                         </span>
                         <span className="text-xs">
                           {player.profitMargin?.toFixed(1)}% margin

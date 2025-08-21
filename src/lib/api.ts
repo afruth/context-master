@@ -222,3 +222,47 @@ export const analyticsApi = {
     return makeRequest(url)
   },
 }
+
+// User API functions
+export const userApi = {
+  getProfile: async () => {
+    return makeRequest('/api/user')
+  },
+
+  updateProfile: async (profileData: {
+    name?: string
+    email?: string
+    username?: string
+  }) => {
+    return makeRequest('/api/user', {
+      method: 'PUT',
+      body: JSON.stringify(profileData),
+    })
+  },
+
+  changePassword: async (passwordData: {
+    currentPassword: string
+    newPassword: string
+  }) => {
+    return makeRequest('/api/user/password', {
+      method: 'PUT',
+      body: JSON.stringify(passwordData),
+    })
+  },
+}
+
+// Settings API functions
+export const settingsApi = {
+  getSettings: async () => {
+    return makeRequest('/api/user/settings')
+  },
+
+  updateSettings: async (settings: {
+    currency?: string
+  }) => {
+    return makeRequest('/api/user/settings', {
+      method: 'PUT',
+      body: JSON.stringify(settings),
+    })
+  },
+}

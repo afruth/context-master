@@ -20,6 +20,8 @@ import type { PlayerWithCalculations, CreateSaleTransactionInput } from "@/types
 import { transactionsApi } from "@/lib/api"
 import { calculateWeeksOwned, calculateSalaryCostForPeriod, calculatePercentageKept } from "@/lib/calculations"
 import { toast } from "sonner"
+import { useCurrency } from "@/hooks/use-settings"
+import { formatCurrency } from "@/lib/utils"
 
 interface RecordSaleModalProps {
   player: PlayerWithCalculations
@@ -46,6 +48,7 @@ interface SalePreview {
 }
 
 export function RecordSaleModal({ player, open, onOpenChange, onSaleRecorded }: RecordSaleModalProps) {
+  const { currency } = useCurrency()
   const [formData, setFormData] = useState<SaleFormData>({
     saleDate: new Date().toISOString().split('T')[0],
     salePrice: '',
@@ -180,7 +183,7 @@ export function RecordSaleModal({ player, open, onOpenChange, onSaleRecorded }: 
       // Use the API utility function
       await transactionsApi.recordSale(saleData)
 
-      toast.success(`Sale recorded successfully! ${salePreview.profitLoss >= 0 ? 'Profit' : 'Loss'}: $${Math.abs(salePreview.profitLoss).toLocaleString()}`)
+      toast.success(`Sale recorded successfully! ${salePreview.profitLoss >= 0 ? 'Profit' : 'Loss'}: ${formatCurrency(Math.abs(salePreview.profitLoss), currency)}`)
       onSaleRecorded()
       onOpenChange(false)
       
@@ -247,7 +250,7 @@ export function RecordSaleModal({ player, open, onOpenChange, onSaleRecorded }: 
                 </div>
                 <div>
                   <span className="text-muted-foreground">Purchase Price:</span>
-                  <span className="ml-2 font-medium">${player.purchaseDetails.price.toLocaleString()}</span>
+                  <span className="ml-2 font-medium">{formatCurrency(player.purchaseDetails.price, currency)}</span>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Weeks Owned:</span>
@@ -331,7 +334,7 @@ export function RecordSaleModal({ player, open, onOpenChange, onSaleRecorded }: 
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Sale Price:</span>
-                    <span className="font-medium">${salePreview.salePrice.toLocaleString()}</span>
+                    <span className="font-medium">{formatCurrency(salePreview.salePrice, currency)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Percentage Kept:</span>
@@ -339,21 +342,21 @@ export function RecordSaleModal({ player, open, onOpenChange, onSaleRecorded }: 
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Net Sale Value:</span>
-                    <span className="font-medium">${salePreview.netSaleValue.toLocaleString()}</span>
+                    <span className="font-medium">{formatCurrency(salePreview.netSaleValue, currency)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Purchase Price:</span>
-                    <span className="font-medium">-${salePreview.purchasePrice.toLocaleString()}</span>
+                    <span className="font-medium">-{formatCurrency(salePreview.purchasePrice, currency)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Salary Costs:</span>
-                    <span className="font-medium">-${salePreview.totalSalaryCost.toLocaleString()}</span>
+                    <span className="font-medium">-{formatCurrency(salePreview.totalSalaryCost, currency)}</span>
                   </div>
                   <div className="flex justify-between col-span-2 pt-2 border-t">
                     <span className="font-medium">Total Profit/Loss:</span>
                     <div className="text-right">
                       <div className={`font-bold ${salePreview.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {salePreview.profitLoss >= 0 ? '+' : ''}${salePreview.profitLoss.toLocaleString()}
+                        {formatCurrency(salePreview.profitLoss, currency, { showSign: true })}
                       </div>
                       <div className={`text-xs ${salePreview.profitMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                         {salePreview.profitMargin >= 0 ? '+' : ''}{salePreview.profitMargin.toFixed(1)}% margin
@@ -376,7 +379,7 @@ export function RecordSaleModal({ player, open, onOpenChange, onSaleRecorded }: 
                 <p className="text-sm text-yellow-700 mt-2">
                   Are you sure you want to record this sale? This will mark the player as SOLD and cannot be undone.
                   <br />
-                  <strong>Final {salePreview.profitLoss >= 0 ? 'Profit' : 'Loss'}: ${Math.abs(salePreview.profitLoss).toLocaleString()}</strong>
+                  <strong>Final {salePreview.profitLoss >= 0 ? 'Profit' : 'Loss'}: {formatCurrency(Math.abs(salePreview.profitLoss), currency)}</strong>
                 </p>
               </CardContent>
             </Card>

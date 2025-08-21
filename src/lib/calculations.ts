@@ -19,7 +19,7 @@ import type {
   PlayerAge,
   HattrickConstants,
   SalaryHistory,
-  Player
+  SalaryBreakdown
 } from '@/types/hattrick';
 
 // Hattrick-specific constants
